@@ -11,14 +11,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 from ..models import CheckName, CheckResult
-from . import deserialization, supply_chain
+from . import deserialization, secrets, supply_chain
 
 CheckRunner = Callable[[Path], CheckResult]
 
 CHECKS: dict[CheckName, CheckRunner] = {
     CheckName.SUPPLY_CHAIN: supply_chain.run,
     CheckName.DESERIALIZATION: deserialization.run,
-    # leakage, secrets, adversarial — coming next.
+    CheckName.SECRETS: secrets.run,
+    # leakage, adversarial — coming next.
 }
 
 __all__ = ["CHECKS", "CheckRunner"]
