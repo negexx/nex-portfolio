@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "file": "deserialization/negative_safe_loads.ipynb",
+      "expected_ids": []
+    },
+    {
+      "file": "deserialization/positive_unsafe_loads.ipynb",
+      "expected_ids": [
+        "deserialization.unsafe-joblib-load",
+        "deserialization.unsafe-numpy-load",
+        "deserialization.unsafe-pickle-load",
+        "deserialization.unsafe-pickle-load",
+        "deserialization.unsafe-torch-load"
+      ]
+    },
+    {
+      "file": "secrets/negative_safe_secret_handling.ipynb",
+      "expected_ids": []
+    },
+    {
+      "file": "secrets/positive_hardcoded_secrets.ipynb",
+      "expected_ids": [
+        "secrets.anthropic-api-key",
+        "secrets.aws-access-key",
+        "secrets.github-token",
+        "secrets.huggingface-token",
+        "secrets.openai-api-key",
+        "secrets.openai-api-key",
+        "secrets.private-key-block",
+        "secrets.slack-token",
+        "secrets.url-with-credentials"
+      ]
+    },
+    {
+      "file": "secrets/positive_leaked_in_output.ipynb",
+      "expected_ids": [
+        "secrets.github-token",
+        "secrets.leaked-in-notebook-output",
+        "secrets.leaked-in-notebook-output",
+        "secrets.leaked-in-notebook-output"
+      ]
+    },
+    {
+      "file": "supply_chain/negative_pinned_pip.ipynb",
+      "expected_ids": []
+    },
+    {
+      "file": "supply_chain/positive_unpinned_pip.ipynb",
+      "expected_ids": [
+        "supply_chain.unpinned-pip-install",
+        "supply_chain.untrusted-wget-source"
+      ]
+    }
+  ]
+}

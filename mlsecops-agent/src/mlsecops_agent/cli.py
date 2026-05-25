@@ -18,6 +18,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .checks import CHECKS
+from .eval import run_eval, write_baseline
 from .models import CheckName, CheckResult, Severity
 from .reporting import render_markdown
 
@@ -226,10 +227,91 @@ def check(name: str, path: str) -> None:
         raise typer.Exit(code=1)
 
 
-@app.command()
-def eval() -> None:
+@app.command(name="eval")
+def eval_cmd(
+    fixtures_root: Annotated[
+        Path,
+        typer.Option(
+            "--fixtures",
+            help="Directory containing per-check fixture subdirectories.",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = Path("tests/fixtures"),
+    baseline: Annotated[
+        Path,
+        typer.Option(
+            "--baseline",
+            help="Path to EVAL_BASELINE.json.",
+        ),
+    ] = Path("tests/fixtures/EVAL_BASELINE.json"),
+    update_baseline: Annotated[
+        bool,
+        typer.Option(
+            "--update-baseline",
+            help="Regenerate the baseline by re-running every check on every fixture.",
+        ),
+    ] = False,
+    min_recall: Annotated[
+        float,
+        typer.Option(
+            "--min-recall",
+            help="Per-check recall floor; any check below this exits 1.",
+            min=0.0,
+            max=1.0,
+        ),
+    ] = 1.0,
+) -> None:
     """Run the fixture eval harness and report precision/recall per check."""
-    raise NotImplementedError("eval() — implement once tests/fixtures/EVAL_BASELINE.json exists")
+    if update_baseline:
+        result = write_baseline(fixtures_root, baseline)
+        _console.print(
+            f"[green]Wrote baseline[/green] with {len(result.fixtures)} fixture entries to "
+            f"[bold]{baseline}[/bold]."
+        )
+        return
+
+    report = run_eval(fixtures_root, baseline)
+
+    table = Table(title="[bold]mlsecops eval[/bold]", show_lines=False)
+    table.add_column("Check", no_wrap=True)
+    table.add_column("TP", justify="right")
+    table.add_column("FP", justify="right")
+    table.add_column("FN", justify="right")
+    table.add_column("Precision", justify="right")
+    table.add_column("Recall", justify="right")
+    table.add_column("F1", justify="right")
+
+    for row in report.rows:
+        recall_style = "green" if row.recall >= min_recall else "red"
+        table.add_row(
+            row.check.value,
+            str(row.true_positives),
+            str(row.false_positives),
+            str(row.false_negatives),
+            f"{row.precision:.3f}",
+            f"[{recall_style}]{row.recall:.3f}[/]",
+            f"{row.f1:.3f}",
+        )
+
+    _console.print(table)
+
+    if report.missing_baseline:
+        _console.print(
+            f"\n[yellow]{len(report.missing_baseline)} fixture(s) have no baseline entry "
+            f"— rerun with --update-baseline to record them:[/yellow]"
+        )
+        for path in report.missing_baseline:
+            _console.print(f"  - {path}")
+
+    failing = [r for r in report.rows if r.recall < min_recall]
+    if failing:
+        names = ", ".join(r.check.value for r in failing)
+        _console.print(
+            f"\n[red]Recall below {min_recall} for: {names}[/red]"
+        )
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
