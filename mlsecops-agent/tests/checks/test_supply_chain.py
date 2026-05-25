@@ -6,6 +6,8 @@ Fixture pair pattern: one notebook that *must* produce findings, one that
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,16 @@ from mlsecops_agent.checks import supply_chain
 from mlsecops_agent.models import CheckName, Severity
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "supply_chain"
+
+
+def _disable_cve(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stop the CVE-side subprocess from actually executing in a single test.
+
+    pip-audit hits a live vulnerability database — non-deterministic, slow,
+    and online. Tests that don't care about CVE behaviour call this; the
+    CVE-specific tests below inject canned subprocess output instead.
+    """
+    monkeypatch.setattr(supply_chain, "_scan_requirements_for_cves", lambda _path: [])
 
 
 def test_positive_fixture_flags_unpinned_pip_and_untrusted_wget() -> None:
@@ -49,7 +61,10 @@ def test_negative_fixture_is_clean() -> None:
     )
 
 
-def test_requirements_txt_unpinned(tmp_path: Path) -> None:
+def test_requirements_txt_unpinned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _disable_cve(monkeypatch)
     req = tmp_path / "requirements.txt"
     req.write_text(
         "# comment, should be ignored\n"
@@ -87,3 +102,91 @@ def test_missing_file_produces_no_findings(tmp_path: Path) -> None:
 )
 def test_is_pinned(spec: str, pinned: bool) -> None:
     assert supply_chain._is_pinned(spec) is pinned
+
+
+# --- pip-audit CVE side --------------------------------------------------
+
+
+def _canned_pip_audit_response() -> str:
+    return json.dumps(
+        {
+            "dependencies": [
+                {
+                    "name": "requests",
+                    "version": "2.6.0",
+                    "vulns": [
+                        {
+                            "id": "GHSA-xxxx-yyyy-zzzz",
+                            "fix_versions": ["2.20.0"],
+                            "description": "Header injection vulnerability in requests",
+                        }
+                    ],
+                },
+                {
+                    "name": "numpy",
+                    "version": "1.26.4",
+                    "vulns": [],
+                },
+            ]
+        }
+    )
+
+
+def test_pip_audit_parses_canned_response(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=list(args),
+            returncode=0,
+            stdout=_canned_pip_audit_response(),
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    req = tmp_path / "requirements.txt"
+    req.write_text("requests==2.6.0\nnumpy==1.26.4\n", encoding="utf-8")
+
+    result = supply_chain.run(tmp_path)
+
+    cve_findings = [f for f in result.findings if f.id == "supply_chain.known-cve"]
+    assert len(cve_findings) == 1
+    assert "requests" in cve_findings[0].evidence
+    assert "GHSA-xxxx-yyyy-zzzz" in cve_findings[0].evidence
+    assert cve_findings[0].severity is Severity.HIGH
+    assert cve_findings[0].fix is not None
+    assert "2.20.0" in cve_findings[0].fix.summary
+
+
+def test_pip_audit_missing_binary_does_not_crash(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _raise(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("pip-audit not installed")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+
+    req = tmp_path / "requirements.txt"
+    req.write_text("requests==2.6.0\n", encoding="utf-8")
+
+    result = supply_chain.run(tmp_path)
+    assert result.tool_status == "ok"
+    assert not any(f.id == "supply_chain.known-cve" for f in result.findings)
+
+
+def test_pip_audit_malformed_json_returns_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=list(args), returncode=0, stdout="not json at all", stderr=""
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    req = tmp_path / "requirements.txt"
+    req.write_text("requests==2.6.0\n", encoding="utf-8")
+
+    result = supply_chain.run(tmp_path)
+    assert not any(f.id == "supply_chain.known-cve" for f in result.findings)

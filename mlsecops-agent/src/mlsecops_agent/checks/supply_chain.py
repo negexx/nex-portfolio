@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import time
 from typing import TYPE_CHECKING
 
@@ -208,6 +210,97 @@ def _scan_requirements(path: Path) -> list[Finding]:
     return findings
 
 
+_PIP_AUDIT_TIMEOUT_S = 60
+
+
+def _pip_audit_binary() -> str | None:
+    """Resolve pip-audit's invocation. Prefer the binary, fall back to module form."""
+    direct = shutil.which("pip-audit")
+    if direct:
+        return direct
+    # Module form is the resilient fallback — pip-audit ships as a project dep.
+    return None
+
+
+def _scan_requirements_for_cves(path: Path) -> list[Finding]:
+    """Run `pip-audit -r <path>` and emit one Finding per advisory.
+
+    Silently no-ops if pip-audit is unavailable, errors, or times out — the
+    deterministic pinning rule already ran and we don't want to fail the
+    whole check on a CVE-database hiccup.
+    """
+    binary = _pip_audit_binary()
+    cmd: list[str]
+    if binary:
+        cmd = [binary, "--requirement", str(path), "--format", "json", "--progress-spinner", "off"]
+    else:
+        cmd = [
+            "python", "-m", "pip_audit",
+            "--requirement", str(path),
+            "--format", "json",
+            "--progress-spinner", "off",
+        ]
+
+    try:
+        completed = subprocess.run(  # noqa: S603 — args are constructed from a known binary + Path
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=_PIP_AUDIT_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+
+    if not completed.stdout.strip():
+        return []
+
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return []
+
+    dependencies = payload.get("dependencies", []) if isinstance(payload, dict) else []
+    findings: list[Finding] = []
+    for dep in dependencies:
+        if not isinstance(dep, dict):
+            continue
+        name = dep.get("name", "<unknown>")
+        version = dep.get("version", "<unknown>")
+        vulns = dep.get("vulns", []) or []
+        for vuln in vulns:
+            if not isinstance(vuln, dict):
+                continue
+            vid = vuln.get("id", "UNKNOWN")
+            fix_versions = vuln.get("fix_versions", []) or []
+            description = (vuln.get("description") or "").strip() or (
+                "see advisory for details."
+            )
+            findings.append(
+                Finding(
+                    id="supply_chain.known-cve",
+                    check=CheckName.SUPPLY_CHAIN,
+                    severity=Severity.HIGH,
+                    category="known-vulnerability",
+                    file=path,
+                    line_start=None,
+                    line_end=None,
+                    message=(
+                        f"`{name}=={version}` is affected by {vid}: "
+                        f"{description[:200]}"
+                    ),
+                    evidence=f"{name}=={version} -> {vid}",
+                    fix=FixProposal(
+                        summary=(
+                            f"Upgrade `{name}` to {', '.join(fix_versions) or 'a patched release'}."
+                        ),
+                        confidence="high",
+                    ),
+                )
+            )
+    return findings
+
+
 def _iter_targets(path: Path) -> Iterable[Path]:
     """Yield files to scan for the given target path."""
     if path.is_file():
@@ -233,6 +326,7 @@ def run(target: Path) -> CheckResult:
                 findings.extend(_scan_notebook(target_file))
             elif target_file.name.startswith("requirements") and target_file.suffix == ".txt":
                 findings.extend(_scan_requirements(target_file))
+                findings.extend(_scan_requirements_for_cves(target_file))
         except (OSError, json.JSONDecodeError):
             continue
 
