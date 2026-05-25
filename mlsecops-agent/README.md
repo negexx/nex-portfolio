@@ -1,6 +1,6 @@
 # mlsecops-agent
 
-A Claude-driven audit agent for ML codebases. Finds the mistakes a generic SAST tool can't (data leakage, model evadability) and the security mistakes specific to ML repos that Cursor doesn't know about (insecure pickle loading, secrets in notebook outputs, unpinned `!pip install`).
+An LLM-orchestrated audit agent for ML codebases. Finds the mistakes a generic SAST tool can't (data leakage, model evadability) and the security mistakes specific to ML repos that Cursor doesn't know about (insecure pickle loading, secrets in notebook outputs, unpinned `!pip install`).
 
 > **Status:** v0.1 in development. The scaffold is in place; check implementations land over the next ~3 weeks.
 
@@ -55,7 +55,7 @@ The fixed version (`../nids_pipeline_v2.ipynb`) is the negative control: the age
 
 See `.claude/docs/architecture.md` for the full map. One-paragraph summary:
 
-CLI (Typer) → Agent loop (Claude Agent SDK) → Check modules (deterministic) → Tool wrappers (bandit, pip-audit, ART, etc.) → SQLite for run history + Langfuse for tracing. Target ML code runs inside a sandbox (Vercel Sandbox or e2b), never in the agent's host process.
+CLI (Typer) → Agent loop (DeepSeek via OpenAI-compatible client) → Check modules (deterministic) → Tool wrappers (bandit, pip-audit, ART, etc.) → SQLite for run history + Langfuse for tracing. Target ML code runs inside a sandbox (Vercel Sandbox or e2b), never in the agent's host process. The LLM orchestrates and explains; every finding is produced by a deterministic tool.
 
 ## Why this project exists
 

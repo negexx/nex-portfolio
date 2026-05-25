@@ -7,7 +7,7 @@ This repo is the entire arc, in three artifacts:
 | Artifact | What it is |
 |---|---|
 | [`nids_v1_baseline.ipynb`](nids_v1_baseline.ipynb) | First-pass NSL-KDD intrusion-detection pipeline. **Intentionally vulnerable** — kept in the repo as the "before" snapshot. |
-| [`mlsecops-agent/`](mlsecops-agent/) | A Claude-driven audit agent for ML codebases. Surfaces data leakage, insecure deserialization, secrets, supply-chain rot, and model evadability. Each finding is produced by a deterministic tool, never by an LLM alone. |
+| [`mlsecops-agent/`](mlsecops-agent/) | An LLM-orchestrated audit agent for ML codebases (DeepSeek-V4 backend). Surfaces data leakage, insecure deserialization, secrets, supply-chain rot, and model evadability. Each finding is produced by a deterministic tool, never by an LLM alone. |
 | [`nids_pipeline_v2.ipynb`](nids_pipeline_v2.ipynb) | The fixed pipeline. The diff against v1 is the value of the agent. |
 
 ---
@@ -26,7 +26,7 @@ None of these would be caught by `bandit`, `ruff`, `mypy`, or a generic SAST too
 
 ## Act 2 — I built the tool that would have caught them
 
-`mlsecops-agent/` is a Python CLI (`mlsecops`) that runs a Claude Agent SDK loop over a target ML repo. It dispatches to deterministic check modules — the LLM orchestrates and explains, but never decides what counts as a vulnerability.
+`mlsecops-agent/` is a Python CLI (`mlsecops`) that runs an LLM-orchestrated tool loop over a target ML repo. The backend is DeepSeek-V4 (V4-Flash for orchestration, V4-Pro for hard reasoning) via the OpenAI-compatible API — chosen for cost so the eval harness can run on every PR. The LLM orchestrates and explains; deterministic check modules decide what counts as a vulnerability.
 
 **v0.1 status:** the `supply_chain` check is fully implemented end-to-end (detection, CLI, fixtures, tests). The remaining four checks (`leakage`, `deserialization`, `secrets`, `adversarial`) are scaffolded with the same shape and land next. Architecture, conventions, and ADRs live under [`mlsecops-agent/.claude/`](mlsecops-agent/.claude/).
 

@@ -25,8 +25,8 @@ Every finding must be produced by a deterministic tool (not LLM vibes). The agen
 ## Stack
 
 - **Language:** Python 3.13
-- **Agent runtime:** Claude Agent SDK (Python) — model: Sonnet 4.6 default, Opus 4.7 for plan + leakage reasoning
-- **Model gateway:** Vercel AI Gateway (provider fallback + observability)
+- **Agent runtime:** custom Python tool loop (`agent.py`, lands in W3). LLM backend is DeepSeek via the OpenAI-compatible client — **no Anthropic dependency** for the project runtime. Default model: `deepseek-v4-flash` (cheap orchestration). Escalation: `deepseek-v4-pro` for leakage/adversarial reasoning.
+- **Model gateway:** direct DeepSeek API by default; OpenRouter as fallback. Decision lives in [.claude/docs/decisions/0004-deepseek-runtime.md](docs/decisions/0004-deepseek-runtime.md).
 - **Sandbox:** Vercel Sandbox (Firecracker microVMs) for running target ML code safely
 - **Package manager:** `uv` (not pip, not poetry)
 - **CLI:** `typer` (entry point: `mlsecops`)
@@ -57,7 +57,8 @@ Every finding must be produced by a deterministic tool (not LLM vibes). The agen
 ```
 src/mlsecops_agent/
 ├── cli.py                 # Typer entry point
-├── agent.py               # Claude Agent SDK loop, tool dispatch
+├── agent.py               # DeepSeek-orchestrated tool loop (W3)
+├── llm/provider.py        # OpenAI-compatible client pointed at DeepSeek (W3)
 ├── prompts/               # System + check-specific prompts
 ├── checks/                # The 5 MVP checks — each is a self-contained module
 │   ├── leakage.py
@@ -90,7 +91,18 @@ See `.claude/docs/conventions.md` for the full list.
 
 ## Model dispatch
 
-Pick the cheapest model that reliably handles the task. Escalate only on evidence of difficulty.
+Two dispatch tables — one for the *project's* LLM calls at runtime, one for *Claude Code* (the assistant writing this codebase).
+
+### Project runtime (the agent calls these)
+
+| Task | Model |
+|------|-------|
+| Orchestration, fix-narration, finding interpretation (DEFAULT) | `deepseek-v4-flash` |
+| Leakage AST-judgement, adversarial strategy, hard reasoning | `deepseek-v4-pro` |
+
+No Claude / Anthropic dependency. The agent runs on DeepSeek's OpenAI-compatible endpoint via the `openai` SDK with a custom `base_url`. Rationale: Claude is the assistant *writing* this project; the project itself targets a cost profile (~20x cheaper input than Sonnet) that lets the eval harness run on every PR without pain.
+
+### Claude Code (the dev assistant)
 
 | Task | Model |
 |------|-------|
@@ -98,11 +110,11 @@ Pick the cheapest model that reliably handles the task. Escalate only on evidenc
 | Check implementation, feature work, debugging, reviews (DEFAULT) | Sonnet 4.6 |
 | Leakage reasoning, adversarial-attack design, architecture, security-critical | Opus 4.7 |
 
-**Escalate** when: a check needs nuanced ML reasoning (is this *really* leakage?), an adversarial attack needs creative perturbation strategy, or the agent loop hits a hard ambiguity.
+**Escalate** when: a check needs nuanced ML reasoning, an adversarial attack needs creative strategy, or the dev loop hits hard ambiguity.
 
 **Downgrade** back to Sonnet once a check's logic is settled — running the check is mechanical.
 
-Never default to Opus for routine implementation. Never drive the audit loop with Haiku.
+Never default to Opus for routine implementation. Never drive the dev loop with Haiku.
 
 ## What "done" means
 

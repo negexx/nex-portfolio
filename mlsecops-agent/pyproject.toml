@@ -16,9 +16,9 @@ classifiers = [
 ]
 
 dependencies = [
-    # Agent loop
-    "claude-agent-sdk",
-    "anthropic",
+    # Agent loop — DeepSeek via the OpenAI-compatible client.
+    # See .claude/docs/decisions/0004-deepseek-runtime.md for the provider choice.
+    "openai>=1.50",
     # CLI + validation
     "typer",
     "rich",
