@@ -1,0 +1,125 @@
+[project]
+name = "mlsecops-agent"
+version = "0.1.0"
+description = "Claude-driven audit agent for ML codebases — finds data leakage, insecure deserialization, secrets, supply-chain CVEs, and model evadability."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "Raf" }]
+keywords = ["mlsecops", "security", "agent", "claude", "ml-audit"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    # Agent loop
+    "claude-agent-sdk",
+    "anthropic",
+    # CLI + validation
+    "typer",
+    "rich",
+    "pydantic>=2",
+    "structlog",
+    # Notebook parsing
+    "nbformat",
+    # AST manipulation
+    "libcst",
+    # Security tool wrappers (called as subprocesses; installed as runtime deps so users don't need a separate install)
+    "bandit",
+    "detect-secrets",
+    "pip-audit",
+    "safety",
+    "semgrep",
+    # Adversarial robustness (heavy dep — consider extra)
+    "adversarial-robustness-toolbox",
+    # Observability
+    "langfuse",
+    # Env loading
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "types-requests",
+]
+
+[project.scripts]
+mlsecops = "mlsecops_agent.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mlsecops_agent"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",        # pycodestyle + pyflakes
+    "I",                  # isort
+    "N",                  # pep8-naming
+    "UP",                 # pyupgrade
+    "B",                  # bugbear
+    "S",                  # bandit-lite for our own code
+    "SIM",                # simplify
+    "RET",                # returns
+    "TCH",                # type-checking
+    "RUF",                # ruff-specific
+]
+ignore = [
+    "S101",  # asserts allowed in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+# Pydantic needs runtime access to typing imports for model validation.
+"src/mlsecops_agent/models.py" = ["TC001", "TC002", "TC003"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+# Pydantic v2's BaseModel / Field implementations use Any internally;
+# disallow_any_explicit on our own code is enforced by ruff (ANN401) instead.
+disallow_any_explicit = false
+plugins = ["pydantic.mypy"]
+files = ["src/mlsecops_agent"]
+
+[[tool.mypy.overrides]]
+module = [
+    "art.*",
+    "detect_secrets.*",
+    "nbformat.*",
+    "pip_audit.*",
+    "safety.*",
+    "semgrep.*",
+]
+ignore_missing_imports = true
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "slow: tests that take more than a second (e.g. real subprocess to bandit)",
+    "sandbox: tests requiring Vercel Sandbox / e2b credentials",
+]

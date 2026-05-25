@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# uv
+.venv/
+uv.lock
+
+# Type checkers + linters
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# Env + secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artifacts
+runs/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+reports/
+.langfuse/
+
+# Never commit ML artifacts — they are exactly what we audit
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+*.safetensors
+# Exception: explicit test fixtures live under tests/fixtures/ — those are intentional
+!tests/fixtures/**/*.pkl
+!tests/fixtures/**/*.h5
+
+# Claude workspace — personal overrides + per-developer memory
+.claude/settings.local.json
+.claude/memory/
+!.claude/memory/README.md
