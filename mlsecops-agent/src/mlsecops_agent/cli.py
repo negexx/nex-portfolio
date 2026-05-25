@@ -19,6 +19,7 @@ from rich.table import Table
 
 from .checks import CHECKS
 from .models import CheckName, CheckResult, Severity
+from .reporting import render_markdown
 
 app = typer.Typer(
     name="mlsecops",
@@ -154,6 +155,17 @@ def audit(
             help="Restrict to one or more checks. Repeat the flag to add more.",
         ),
     ] = None,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            "-r",
+            help="Write a Markdown report of the run to this path.",
+            dir_okay=False,
+            file_okay=True,
+            writable=True,
+        ),
+    ] = None,
 ) -> None:
     """Run every registered check against a target repo or file."""
     target = Path(path)
@@ -175,6 +187,10 @@ def audit(
         if r.findings:
             _console.print()
             _render(r)
+
+    if report is not None:
+        report.write_text(render_markdown(results, target=target), encoding="utf-8")
+        _console.print(f"\n[dim]Markdown report written to[/dim] [bold]{report}[/bold]")
 
     if any(
         f.severity in (Severity.HIGH, Severity.CRITICAL)
