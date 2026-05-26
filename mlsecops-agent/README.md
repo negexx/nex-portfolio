@@ -13,10 +13,12 @@ Five checks, two pillars:
 | 1 | `supply_chain` | Security | regex + `pip-audit` CVE lookups | ✅ |
 | 2 | `deserialization` | Security | libcst AST (joblib / pickle / torch / numpy unsafe loads) | ✅ |
 | 3 | `secrets` | Security | regex + notebook-output scan (escalated severity for committed outputs) | ✅ |
-| 4 | `leakage` | ML hygiene | libcst AST (SMOTE-before-split cross-cell, fit-on-test, label-proxy names) | ✅ |
+| 4 | `leakage` | ML hygiene | libcst AST (SMOTE-before-split cross-cell, fit-on-test, label-proxy names) | ✅ ¹ |
 | 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models) | ✅ (opt-in) |
 
-Every finding is produced by a deterministic tool. The LLM never *decides* what is vulnerable — its role (once W3.2 lands) is orchestration, fix-narration, and executive summary.
+Every finding is produced by a deterministic tool. The LLM never *decides* what is vulnerable — its role is orchestration, fix-narration, and executive summary (`mlsecops audit --with-llm`).
+
+¹ **Known leakage-rule limitation.** `leakage.preprocessing-before-split` is anchored on the position of `train_test_split(...)` in document order. Notebooks that load already-split data from disk (separate `train.csv` / `test.csv` files — which the sibling v1 notebook does) have no anchor for the rule to fire against. The label-proxy and fit-on-test rules are independent and still fire normally.
 
 ## Quick start
 

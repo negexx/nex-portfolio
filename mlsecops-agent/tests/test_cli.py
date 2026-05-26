@@ -13,7 +13,13 @@ from typer.testing import CliRunner
 
 from mlsecops_agent.checks import CHECKS
 from mlsecops_agent.cli import app, set_llm_provider_override
-from mlsecops_agent.llm import AssistantMessage, ChatResponse, MockLLMProvider, ToolCall
+from mlsecops_agent.llm import (
+    AssistantMessage,
+    ChatResponse,
+    MockLLMProvider,
+    ToolCall,
+    Usage,
+)
 
 # Force a wide terminal so Rich doesn't truncate rule names like
 # `supply_chain.unpinned-pip-install` to `supply_chain.un…` in test output.
@@ -182,3 +188,36 @@ def test_history_show_rejects_ambiguous_prefix(tmp_path: Path) -> None:
     result = runner.invoke(app, ["history", "show", str(db), "abc123"])
     assert result.exit_code != 0
     assert "multiple" in result.output.lower()
+
+
+def test_audit_with_llm_persists_run(tmp_path: Path) -> None:
+    """Regression: --with-llm --persist was a no-op in earlier builds because the
+    LLM branch returned before the persist block. This test fails on that bug.
+    """
+    target = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
+    db = tmp_path / "h.sqlite"
+
+    # Build a mock provider that immediately returns a no-tool-call summary —
+    # the loop terminates, transcript has no findings (the agent didn't call run_check)
+    # but the persist call should still happen.
+    provider = MockLLMProvider(
+        [
+            ChatResponse(
+                message=AssistantMessage(content="No issues to report.", tool_calls=[]),
+                usage=Usage(input_tokens=0, output_tokens=0),
+            )
+        ]
+    )
+    set_llm_provider_override(provider)
+    try:
+        result = runner.invoke(
+            app, ["audit", str(target), "--with-llm", "--persist", str(db)]
+        )
+    finally:
+        set_llm_provider_override(None)
+
+    assert db.exists(), "DB was not created — persist branch was skipped"
+    assert "Persisted run" in result.output
+
+    list_result = runner.invoke(app, ["history", "list", str(db)])
+    assert "agent" in list_result.output  # invocation column should record 'agent'

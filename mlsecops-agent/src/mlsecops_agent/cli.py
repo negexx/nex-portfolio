@@ -228,7 +228,7 @@ def audit(
         raise typer.BadParameter(f"target path does not exist: {path}")
 
     if with_llm:
-        _run_audit_with_llm(target)
+        _run_audit_with_llm(target, persist=persist, report=report)
         return
 
     selected = _resolve_checks(only or [])
@@ -418,7 +418,12 @@ def _results_from_transcript(transcript: AuditTranscript) -> list[CheckResult]:
     ]
 
 
-def _run_audit_with_llm(target: Path) -> None:
+def _run_audit_with_llm(
+    target: Path,
+    *,
+    persist: Path | None = None,
+    report: Path | None = None,
+) -> None:
     provider = _resolve_llm_provider()
     try:
         transcript = run_audit_with_agent(target, provider=provider)
@@ -427,6 +432,22 @@ def _run_audit_with_llm(target: Path) -> None:
         raise typer.Exit(code=1) from exc
 
     _render_transcript(transcript)
+
+    deterministic = list(_results_from_transcript(transcript))
+
+    if report is not None:
+        report.write_text(render_markdown(deterministic, target=target), encoding="utf-8")
+        _console.print(f"\n[dim]Markdown report written to[/dim] [bold]{report}[/bold]")
+
+    if persist is not None:
+        repo = Repository(persist)
+        run_id = repo.record_run(
+            target=str(target),
+            results=deterministic,
+            invocation="agent",
+            extra={"iterations": str(transcript.iterations)},
+        )
+        _console.print(f"[dim]Persisted run[/dim] [bold]{run_id}[/bold] [dim]to[/dim] {persist}")
 
     if any(
         f.severity in (Severity.HIGH, Severity.CRITICAL) for f in transcript.findings
