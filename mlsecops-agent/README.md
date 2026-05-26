@@ -2,60 +2,112 @@
 
 An LLM-orchestrated audit agent for ML codebases. Finds the mistakes a generic SAST tool can't (data leakage, model evadability) and the security mistakes specific to ML repos that Cursor doesn't know about (insecure pickle loading, secrets in notebook outputs, unpinned `!pip install`).
 
-> **Status:** v0.1 in development. The scaffold is in place; check implementations land over the next ~3 weeks.
+> **Status — v0.2**: all 5 checks shipped end-to-end (detection, fixtures, tests, registry, CLI). 119 tests pass, mypy `--strict` clean, ruff clean. The LLM-orchestrated agent loop (DeepSeek-V4) is the next milestone — currently the CLI runs checks deterministically without involving an LLM.
 
 ## What it does
 
 Five checks, two pillars:
 
-| # | Check | Pillar | Backed by |
-|---|-------|--------|-----------|
-| 1 | `leakage` | ML hygiene | Custom AST + libcst |
-| 2 | `deserialization` | Security | `bandit` + custom rules |
-| 3 | `secrets` | Security | `detect-secrets` + `trufflehog` + `nbformat` |
-| 4 | `supply_chain` | Security | `pip-audit` + `safety` |
-| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` |
+| # | Check | Pillar | Backed by | Status |
+|---|-------|--------|-----------|--------|
+| 1 | `supply_chain` | Security | regex + `pip-audit` CVE lookups | ✅ |
+| 2 | `deserialization` | Security | libcst AST (joblib / pickle / torch / numpy unsafe loads) | ✅ |
+| 3 | `secrets` | Security | regex + notebook-output scan (escalated severity for committed outputs) | ✅ |
+| 4 | `leakage` | ML hygiene | libcst AST (SMOTE-before-split cross-cell, fit-on-test, label-proxy names) | ✅ |
+| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models) | ✅ (opt-in) |
 
-Every finding is produced by a deterministic tool. The agent orchestrates: route → run → interpret → propose fix → verify. The LLM never *decides* what is vulnerable.
+Every finding is produced by a deterministic tool. The LLM never *decides* what is vulnerable — its role (once W3.2 lands) is orchestration, fix-narration, and executive summary.
 
 ## Quick start
 
 ```bash
 # Install
-uv sync
+uv sync --extra dev
 
-# Configure
+# (Optional) configure LLM backend — only required for the agent loop (W3.2+)
 cp .env.example .env.local
-$EDITOR .env.local  # add ANTHROPIC_API_KEY at minimum
+$EDITOR .env.local   # set DEEPSEEK_API_KEY
 
-# Audit a target repo
+# Audit a target repo or notebook (runs all 5 checks bar adversarial)
 uv run mlsecops audit /path/to/repo
+
+# Include the FGSM evasion check against saved .h5/.keras models (needs TensorFlow)
+uv run mlsecops audit /path/to/repo --include-adversarial
 
 # Run a single check
 uv run mlsecops check leakage /path/to/notebook.ipynb
 
-# Run the eval harness against fixtures
+# Write a Markdown report
+uv run mlsecops audit /path/to/repo --report audit.md
+
+# Run a single check filter
+uv run mlsecops audit /path/to/repo --check supply_chain --check secrets
+
+# Eval harness: precision / recall / F1 per check against the committed baseline
 uv run mlsecops eval
+uv run mlsecops eval --update-baseline   # regenerate after intentional behavior change
 ```
 
-## Example: auditing a sibling project
+## Real run on the sibling v1 NIDS notebook
 
-This repo lives alongside an NSL-KDD NIDS notebook (`../Untitled9.ipynb`) that was built with realistic ML-hygiene and security mistakes. The agent's eval baseline includes this notebook as a fixture; expected findings:
+```
+$ uv run mlsecops audit ../nids_v1_baseline.ipynb
 
-- `leakage.label-proxy-feature` — `difficulty_level` kept as a feature
-- `leakage.preprocessing-before-split` — SMOTE applied before train/val split
-- `deserialization.untrusted-joblib-load` — `joblib.load(...)` of artifacts with no integrity check
-- `supply_chain.unpinned-pip-install` — `!pip install imbalanced-learn -q` (no version)
-- `supply_chain.untrusted-wget-source` — `!wget` from raw GitHub with no checksum
-- `adversarial.fgsm-trivial-evasion` — trained LSTM flipped by ε ≤ 0.05 perturbation on ≥ 80% of attack samples
+                 mlsecops audit summary
+┌─────────────────┬──────────┬──────────────┬──────────┬────────┐
+│ Check           │ Findings │ Max severity │ Duration │ Status │
+├─────────────────┼──────────┼──────────────┼──────────┼────────┤
+│ deserialization │        8 │ high         │   1604ms │ issues │
+│ leakage         │        2 │ high         │    742ms │ issues │
+│ supply_chain    │        7 │ medium       │      5ms │ issues │
+│ adversarial     │        0 │ —            │      0ms │ clean  │
+│ secrets         │        0 │ —            │      2ms │ clean  │
+└─────────────────┴──────────┴──────────────┴──────────┴────────┘
+```
 
-The fixed version (`../nids_pipeline_v2.ipynb`) is the negative control: the agent should *not* flag the same issues.
+17 findings across 4 checks. `secrets` and `adversarial` correctly come up clean (no hardcoded creds in v1; no saved Keras artifacts in the notebook directory). Full Markdown report with per-rule rows, evidence, and fix proposals lives in [`docs/v1_audit_report.md`](docs/v1_audit_report.md).
 
 ## Architecture
 
-See `.claude/docs/architecture.md` for the full map. One-paragraph summary:
+```
+src/mlsecops_agent/
+├── cli.py                     # Typer entry point: audit, check, eval
+├── checks/                    # The 5 MVP checks — each exports run(target) -> CheckResult
+│   ├── supply_chain.py        # regex + pip-audit subprocess
+│   ├── deserialization.py     # libcst AST (joblib/pickle/torch/numpy)
+│   ├── secrets.py             # regex + nbformat output-cell scan
+│   ├── leakage.py             # libcst AST + cross-cell line translation
+│   └── adversarial.py         # ART FGSM against tf.keras models (opt-in)
+├── eval/
+│   └── harness.py             # Fixture-based P/R/F1 vs EVAL_BASELINE.json
+├── reporting/
+│   └── markdown.py            # Deterministic Markdown report renderer
+├── models.py                  # Pydantic types: Finding, CheckResult, FixProposal
+├── agent.py                   # ⏳ DeepSeek-orchestrated tool loop (W3.2 in progress)
+├── llm/provider.py            # ⏳ OpenAI-compatible client → DeepSeek (W3.2)
+├── prompts/                   # ⏳ Agent system prompt (W3.2)
+└── storage/                   # ⏳ SQLite run history (W3.3 planned)
+tests/
+├── checks/                    # Per-check tests (10–41 each, 89 total)
+├── fixtures/                  # Positive + negative .ipynb per check
+├── fixtures/EVAL_BASELINE.json # Generated expected-findings baseline
+├── test_cli.py                # Typer CliRunner integration tests
+├── test_eval.py               # Harness math + regression test
+└── test_reporting.py          # Markdown renderer snapshot tests
+```
 
-CLI (Typer) → Agent loop (DeepSeek via OpenAI-compatible client) → Check modules (deterministic) → Tool wrappers (bandit, pip-audit, ART, etc.) → SQLite for run history + Langfuse for tracing. Target ML code runs inside a sandbox (Vercel Sandbox or e2b), never in the agent's host process. The LLM orchestrates and explains; every finding is produced by a deterministic tool.
+Deeper notes: [`.claude/docs/architecture.md`](.claude/docs/architecture.md). LLM choice + alternatives in [ADR 0004](.claude/docs/decisions/0004-deepseek-runtime.md).
+
+## What "done" means for a check
+
+A check is not shipped until:
+
+1. `run(target: Path) -> CheckResult` is implemented and returns Pydantic-typed findings
+2. It's registered in `checks/CHECKS` so `mlsecops audit` picks it up
+3. A positive fixture flags the issue and a negative fixture is clean
+4. Unit tests cover the AST/regex edge cases (aliased imports, cross-cell layouts, masked secrets, etc.)
+5. `EVAL_BASELINE.json` includes the fixtures and `mlsecops eval` reports 1.0 P/R
+6. `mypy --strict` and `ruff` are green
 
 ## Why this project exists
 
@@ -64,30 +116,9 @@ Generic SAST tools don't understand ML. ML linters don't understand security. Th
 - A `joblib.load` of a malicious model file = arbitrary code execution on every machine that loads it.
 - A `pd.read_csv(...)` from a poisoned source = silent training-data tampering.
 - A `SMOTE.fit_resample(X, y)` before `train_test_split` = inflated val metrics that lie to you for the rest of the project.
+- A trained classifier that flips under ε=0.05 FGSM perturbation = an evadable production IDS.
 
 This agent is the tool that would have caught those issues earlier — including in the author's own sibling NIDS notebook.
-
-## Project layout
-
-```
-mlsecops-agent/
-├── .claude/                       # AI workspace (Claude Code)
-├── src/mlsecops_agent/
-│   ├── cli.py                     # Typer entry point
-│   ├── agent.py                   # Claude Agent SDK loop
-│   ├── checks/                    # 5 MVP checks
-│   ├── tools/                     # External CLI wrappers
-│   ├── storage/                   # SQLite repository
-│   ├── reporting/                 # Markdown + JSON renderers
-│   ├── sandbox.py                 # Sandbox client
-│   ├── models.py                  # Pydantic types
-│   └── prompts/                   # System + per-check prompts
-├── tests/
-│   ├── checks/                    # Per-check unit tests
-│   └── fixtures/                  # Positive + negative scenarios
-├── pyproject.toml                 # uv-managed, Python 3.13
-└── README.md
-```
 
 ## License
 
