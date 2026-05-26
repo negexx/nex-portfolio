@@ -245,8 +245,9 @@ class Repository:
 
     def findings_for_run(self, run_id: str) -> list[Finding]:
         """Reconstruct Finding objects from the persisted rows."""
+        from pathlib import Path
+
         from ..models import CheckName, FixProposal, Severity
-        from pathlib import Path  # noqa: PLC0415 — late import keeps top of file Path-free
 
         with _connect(self._db_path) as conn:
             rows = conn.execute(

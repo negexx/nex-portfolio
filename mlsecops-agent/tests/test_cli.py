@@ -12,7 +12,8 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from mlsecops_agent.checks import CHECKS
-from mlsecops_agent.cli import app
+from mlsecops_agent.cli import app, set_llm_provider_override
+from mlsecops_agent.llm import AssistantMessage, ChatResponse, MockLLMProvider, ToolCall
 
 # Force a wide terminal so Rich doesn't truncate rule names like
 # `supply_chain.unpinned-pip-install` to `supply_chain.un…` in test output.
@@ -70,3 +71,56 @@ def test_check_subcommand_still_works() -> None:
     result = runner.invoke(app, ["check", "supply_chain", str(target)])
     # See note in test_audit_flags_supply_chain_positive_fixture re: truncation.
     assert "supply_chain.un" in result.output
+
+
+def test_audit_with_llm_uses_provider_override_and_renders_summary() -> None:
+    """`audit --with-llm` should drive the loop through the injected provider
+    and surface the executive summary plus deterministic finding tables.
+    """
+    target = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
+    provider = MockLLMProvider(
+        [
+            ChatResponse(
+                message=AssistantMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="r1",
+                            name="run_check",
+                            arguments={
+                                "check": "supply_chain",
+                                "target": str(target),
+                            },
+                        )
+                    ],
+                )
+            ),
+            ChatResponse(
+                message=AssistantMessage(
+                    content="Executive summary: one supply_chain finding.",
+                )
+            ),
+        ]
+    )
+    set_llm_provider_override(provider)
+    try:
+        result = runner.invoke(app, ["audit", str(target), "--with-llm"])
+    finally:
+        set_llm_provider_override(None)
+
+    # The fixture surfaces only MEDIUM findings, so exit should be clean.
+    assert result.exit_code == 0, result.output
+    assert "executive summary" in result.output.lower()
+    assert "supply_chain" in result.output
+
+
+def test_audit_with_llm_errors_without_api_key(tmp_path: Path) -> None:
+    """Without an override and without DEEPSEEK_API_KEY, the command should
+    exit 1 with a pointer to .env.example."""
+    set_llm_provider_override(None)
+    no_key_runner = CliRunner(
+        env={"COLUMNS": "200", "TERM": "dumb", "DEEPSEEK_API_KEY": ""}
+    )
+    result = no_key_runner.invoke(app, ["audit", str(tmp_path), "--with-llm"])
+    assert result.exit_code == 1
+    assert "deepseek_api_key" in result.output.lower()

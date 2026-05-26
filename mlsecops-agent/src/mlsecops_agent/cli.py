@@ -4,12 +4,15 @@ Currently wired commands:
 
 - ``mlsecops check <name> <path>`` — run a single check.
 - ``mlsecops audit <path>`` — run every registered check, aggregate findings.
+  Pass ``--with-llm`` to drive the run through the DeepSeek-orchestrated agent
+  loop instead of the deterministic per-check fan-out.
 
 ``eval`` lands with the fixture-eval harness (W2.3).
 """
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -17,10 +20,26 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .agent import AuditTranscript, run_audit_with_agent
 from .checks import CHECKS
 from .eval import run_eval, write_baseline
-from .models import CheckName, CheckResult, Severity
+from .llm import LLMProvider, LLMProviderError, MockLLMProvider
+from .models import CheckName, CheckResult, Finding, Severity
 from .reporting import render_markdown
+
+# Module-level seam so tests can swap in a MockLLMProvider without touching env.
+# A non-None value here takes precedence over building a real LLMProvider.
+_LLM_PROVIDER_OVERRIDE: LLMProvider | MockLLMProvider | None = None
+
+
+def set_llm_provider_override(provider: LLMProvider | MockLLMProvider | None) -> None:
+    """Inject (or clear) the provider used by ``audit --with-llm``.
+
+    Intended for tests — production code instantiates ``LLMProvider()`` from
+    environment variables.
+    """
+    global _LLM_PROVIDER_OVERRIDE
+    _LLM_PROVIDER_OVERRIDE = provider
 
 app = typer.Typer(
     name="mlsecops",
@@ -177,11 +196,26 @@ def audit(
             ),
         ),
     ] = False,
+    with_llm: Annotated[
+        bool,
+        typer.Option(
+            "--with-llm",
+            help=(
+                "Drive the audit through the DeepSeek-orchestrated agent loop. "
+                "Requires DEEPSEEK_API_KEY in the environment unless a provider "
+                "override has been set (tests only)."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run every registered check against a target repo or file."""
     target = Path(path)
     if not target.exists():
         raise typer.BadParameter(f"target path does not exist: {path}")
+
+    if with_llm:
+        _run_audit_with_llm(target)
+        return
 
     selected = _resolve_checks(only or [])
     if not selected:
@@ -210,6 +244,86 @@ def audit(
         f.severity in (Severity.HIGH, Severity.CRITICAL)
         for r in results
         for f in r.findings
+    ):
+        raise typer.Exit(code=1)
+
+
+def _resolve_llm_provider() -> LLMProvider | MockLLMProvider:
+    if _LLM_PROVIDER_OVERRIDE is not None:
+        return _LLM_PROVIDER_OVERRIDE
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        _console.print(
+            "[red]DEEPSEEK_API_KEY is not set.[/red] "
+            "Copy `.env.example` to `.env.local` and add your key, "
+            "or export it in your shell."
+        )
+        raise typer.Exit(code=1)
+    return LLMProvider()
+
+
+def _render_transcript(transcript: AuditTranscript) -> None:
+    _console.rule("[bold]LLM executive summary[/bold]")
+    if transcript.final_summary:
+        _console.print(transcript.final_summary)
+    else:
+        hit_cap = transcript.hit_iteration_cap
+        _console.print(
+            "[yellow]Agent stopped without producing a final summary "
+            f"(iterations={transcript.iterations}, hit_cap={hit_cap}).[/yellow]"
+        )
+
+    deterministic = list(_results_from_transcript(transcript))
+    if deterministic:
+        _console.print()
+        _render_summary(deterministic)
+        for r in deterministic:
+            if r.findings:
+                _console.print()
+                _render(r)
+
+    if transcript.fix_proposals:
+        _console.print()
+        _console.rule("[bold]LLM-authored fix narratives[/bold]")
+        for proposal in transcript.fix_proposals:
+            location = proposal.file
+            if proposal.line_start is not None:
+                location = f"{location}:{proposal.line_start}"
+            _console.print(
+                f"- [bold]{proposal.rule_id}[/bold] at [dim]{location}[/dim]\n"
+                f"  {proposal.narrative}"
+            )
+
+
+def _results_from_transcript(transcript: AuditTranscript) -> list[CheckResult]:
+    """Reconstruct CheckResult-like rows from the transcript's findings.
+
+    The agent stores raw Findings rather than CheckResults so the summary
+    table needs us to bucket them by check. ``duration_ms`` is reported as 0
+    here because the per-check timing already lives in the markdown report
+    rendered alongside; reusing the summary table is the value, not the time.
+    """
+    by_check: dict[CheckName, list[Finding]] = {c: [] for c in CheckName}
+    for f in transcript.findings:
+        by_check.setdefault(f.check, []).append(f)
+    return [
+        CheckResult(check=check, findings=findings, tool_status="ok", duration_ms=0)
+        for check, findings in by_check.items()
+        if findings
+    ]
+
+
+def _run_audit_with_llm(target: Path) -> None:
+    provider = _resolve_llm_provider()
+    try:
+        transcript = run_audit_with_agent(target, provider=provider)
+    except LLMProviderError as exc:
+        _console.print(f"[red]LLM provider error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _render_transcript(transcript)
+
+    if any(
+        f.severity in (Severity.HIGH, Severity.CRITICAL) for f in transcript.findings
     ):
         raise typer.Exit(code=1)
 

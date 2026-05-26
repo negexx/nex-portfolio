@@ -54,13 +54,13 @@ def test_record_run_persists_summary_metrics(tmp_path: Path) -> None:
     db = tmp_path / "h.sqlite"
     repo = Repository(db)
     rid = repo.record_run(
-        target="/tmp/notebook.ipynb",
+        target="sample/notebook.ipynb",
         results=[_result([_finding(sev=Severity.HIGH), _finding(sev=Severity.LOW)])],
     )
 
     run = repo.get_run(rid)
     assert run is not None
-    assert run["target"] == "/tmp/notebook.ipynb"
+    assert run["target"] == "sample/notebook.ipynb"
     assert run["total_findings"] == 2
     assert run["max_severity"] == "high"
     assert run["blocking"] == 1
