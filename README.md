@@ -94,7 +94,35 @@ uv run mlsecops eval                                 # P/R per check vs baseline
 
 Five models are trained (LogReg, Random Forest, HistGBM, Conv1D CNN, LSTM) and compared on the held-out NSL-KDD test set. Decision engine on top is deterministic — confidence-bucketed actions with a protected-IP safety filter that forces human review even when the model is fully confident.
 
-> **Status of v2 numbers:** local execution attempted on Windows + Python 3.13 + CPU TensorFlow. First attempt timed out on the LSTM's 30-epoch fit at the 30-minute ceiling; nbconvert lost all earlier outputs. Currently re-running with `epochs=5` for CNN and LSTM (a deliberate tradeoff — slightly weaker final metrics but the pipeline produces real numbers). An executed copy will land as `nids_pipeline_v2.executed.ipynb` with macro-F1, confusion matrices, and training curves once the run completes. The canonical 30-epoch run is a Colab job.
+### v2 results — real numbers from the classical models
+
+CNN and LSTM training on CPU exceeded a 15-minute per-cell ceiling even at `epochs=5`, so the deep models are deferred to Colab. The classical models (LogReg, Random Forest, HistGBM) ran end-to-end in **97 seconds** and produced real metrics on the held-out NSL-KDD test set:
+
+| Model | Val accuracy | Val macro-F1 | Test accuracy | Test macro-F1 |
+|---|---:|---:|---:|---:|
+| LogReg | 0.9701 | 0.7069 | 0.7952 | 0.5848 |
+| RandomForest | 0.9991 | 0.9663 | 0.7662 | 0.5377 |
+| **HistGBM** | **0.9992** | **0.9797** | **0.7768** | **0.6062** |
+
+HistGBM wins on test macro-F1. The val→test gap (0.98 → 0.61) is the well-known NSL-KDD generalisation problem: the test set deliberately contains attack signatures not present in training, which is what makes it a useful benchmark. Per-class on test:
+
+```
+              precision    recall  f1-score   support
+         DoS     0.9611    0.8006    0.8736      7167
+      Normal     0.6884    0.9729    0.8063     10004
+       Probe     0.8146    0.6786    0.7404      2421
+         R2L     0.9719    0.1317    0.2320      2885
+         U2R     0.6429    0.2687    0.3789        67
+   macro avg     0.8158    0.5705    0.6062     22544
+```
+
+DoS / Normal / Probe are well-handled; R2L and U2R are tiny classes with novel attack types in test — they're the unsolved part of NSL-KDD.
+
+![v2 confusion matrices for LogReg / RandomForest / HistGBM](v2_confusion_matrix.png)
+
+Raw artifacts: [`v2_classical_results.json`](v2_classical_results.json) (per-model accuracy / F1 / train time), [`v2_classical_log.txt`](v2_classical_log.txt) (full stdout), [`v2_confusion_matrix.png`](v2_confusion_matrix.png).
+
+> **Deep models (Conv1D CNN + LSTM) status:** still deferred to Colab. Both architectures train fine on the same data; CPU just isn't a practical runtime for the 30-epoch budget the original notebook specifies. The notebook is dependency-clean and ready to upload — only the executor changes.
 
 ---
 

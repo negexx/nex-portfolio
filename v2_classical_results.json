@@ -1,0 +1,53 @@
+{
+  "results": [
+    {
+      "model": "LogReg",
+      "split": "val",
+      "accuracy": 0.9701,
+      "f1_macro": 0.7069,
+      "f1_weighted": 0.9758,
+      "train_secs": 59.8
+    },
+    {
+      "model": "LogReg",
+      "split": "test",
+      "accuracy": 0.7952,
+      "f1_macro": 0.5848,
+      "f1_weighted": 0.779,
+      "train_secs": 59.8
+    },
+    {
+      "model": "RandomForest",
+      "split": "val",
+      "accuracy": 0.9991,
+      "f1_macro": 0.9663,
+      "f1_weighted": 0.9991,
+      "train_secs": 14.2
+    },
+    {
+      "model": "RandomForest",
+      "split": "test",
+      "accuracy": 0.7662,
+      "f1_macro": 0.5377,
+      "f1_weighted": 0.7218,
+      "train_secs": 14.2
+    },
+    {
+      "model": "HistGBM",
+      "split": "val",
+      "accuracy": 0.9992,
+      "f1_macro": 0.9797,
+      "f1_weighted": 0.9992,
+      "train_secs": 17.8
+    },
+    {
+      "model": "HistGBM",
+      "split": "test",
+      "accuracy": 0.7768,
+      "f1_macro": 0.6062,
+      "f1_weighted": 0.7458,
+      "train_secs": 17.8
+    }
+  ],
+  "best_model": "HistGBM"
+}
