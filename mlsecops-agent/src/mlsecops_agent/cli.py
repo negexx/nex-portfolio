@@ -26,6 +26,7 @@ from .eval import run_eval, write_baseline
 from .llm import LLMProvider, LLMProviderError, MockLLMProvider
 from .models import CheckName, CheckResult, Finding, Severity
 from .reporting import render_markdown
+from .storage import Repository
 
 # Module-level seam so tests can swap in a MockLLMProvider without touching env.
 # A non-None value here takes precedence over building a real LLMProvider.
@@ -207,6 +208,19 @@ def audit(
             ),
         ),
     ] = False,
+    persist: Annotated[
+        Path | None,
+        typer.Option(
+            "--persist",
+            help=(
+                "Persist this run + findings to a SQLite DB at the given path. "
+                "View past runs with `mlsecops history list/show`."
+            ),
+            dir_okay=False,
+            file_okay=True,
+            writable=True,
+        ),
+    ] = None,
 ) -> None:
     """Run every registered check against a target repo or file."""
     target = Path(path)
@@ -240,12 +254,104 @@ def audit(
         report.write_text(render_markdown(results, target=target), encoding="utf-8")
         _console.print(f"\n[dim]Markdown report written to[/dim] [bold]{report}[/bold]")
 
+    if persist is not None:
+        repo = Repository(persist)
+        run_id = repo.record_run(target=str(target), results=results, invocation="cli")
+        _console.print(f"[dim]Persisted run[/dim] [bold]{run_id}[/bold] [dim]to[/dim] {persist}")
+
     if any(
         f.severity in (Severity.HIGH, Severity.CRITICAL)
         for r in results
         for f in r.findings
     ):
         raise typer.Exit(code=1)
+
+
+history_app = typer.Typer(name="history", help="View persisted audit runs.", no_args_is_help=True)
+app.add_typer(history_app, name="history")
+
+
+@history_app.command("list")
+def history_list(
+    db: Annotated[
+        Path,
+        typer.Argument(help="Path to the SQLite DB written by `audit --persist`."),
+    ],
+    limit: Annotated[int, typer.Option("--limit", "-n", min=1, max=200)] = 20,
+) -> None:
+    """List the most recent audit runs in this DB."""
+    if not db.exists():
+        raise typer.BadParameter(f"db not found: {db}")
+    repo = Repository(db)
+    rows = repo.list_runs(limit=limit)
+    if not rows:
+        _console.print("[yellow]no runs recorded yet.[/yellow]")
+        return
+    table = Table(title="[bold]mlsecops history[/bold]", show_lines=False)
+    table.add_column("Run ID", no_wrap=True)
+    table.add_column("Started", no_wrap=True)
+    table.add_column("Target", overflow="fold")
+    table.add_column("Findings", justify="right")
+    table.add_column("Max sev", no_wrap=True)
+    table.add_column("Invocation", no_wrap=True)
+    for row in rows:
+        max_sev = row.get("max_severity") or "-"
+        sev_value = str(max_sev) if max_sev != "-" else max_sev
+        sev_cell = (
+            f"[{_SEVERITY_STYLE.get(Severity(sev_value), 'dim')}]{sev_value}[/]"
+            if sev_value in {s.value for s in Severity}
+            else sev_value
+        )
+        table.add_row(
+            str(row["run_id"])[:12],
+            str(row["started_at"]),
+            str(row["target"]),
+            str(row["total_findings"]),
+            sev_cell,
+            str(row["invocation"]),
+        )
+    _console.print(table)
+
+
+@history_app.command("show")
+def history_show(
+    db: Annotated[Path, typer.Argument(help="Path to the SQLite DB.")],
+    run_id: Annotated[str, typer.Argument(help="Run ID (or unique prefix).")],
+) -> None:
+    """Show full findings for one persisted run."""
+    if not db.exists():
+        raise typer.BadParameter(f"db not found: {db}")
+    repo = Repository(db)
+    # Allow prefix match for convenience.
+    runs = [r for r in repo.list_runs(limit=200) if str(r["run_id"]).startswith(run_id)]
+    if not runs:
+        raise typer.BadParameter(f"no run matches '{run_id}'")
+    if len(runs) > 1:
+        ids = ", ".join(str(r["run_id"])[:12] for r in runs)
+        raise typer.BadParameter(f"prefix '{run_id}' matches multiple runs: {ids}")
+    full_id = str(runs[0]["run_id"])
+    findings = repo.findings_for_run(full_id)
+
+    _console.print(f"[bold]Run {full_id}[/bold] — {len(findings)} finding(s)")
+    if not findings:
+        return
+
+    table = Table(show_lines=True)
+    table.add_column("Severity", no_wrap=True)
+    table.add_column("Rule", no_wrap=True)
+    table.add_column("Location", no_wrap=True)
+    table.add_column("Message")
+    for f in findings:
+        loc = str(f.file)
+        if f.line_start is not None:
+            loc = f"{loc}:{f.line_start}"
+        table.add_row(
+            f"[{_SEVERITY_STYLE[f.severity]}]{f.severity.value}[/]",
+            f.id,
+            loc,
+            f.message,
+        )
+    _console.print(table)
 
 
 def _resolve_llm_provider() -> LLMProvider | MockLLMProvider:

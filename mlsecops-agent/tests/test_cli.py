@@ -124,3 +124,61 @@ def test_audit_with_llm_errors_without_api_key(tmp_path: Path) -> None:
     result = no_key_runner.invoke(app, ["audit", str(tmp_path), "--with-llm"])
     assert result.exit_code == 1
     assert "deepseek_api_key" in result.output.lower()
+
+
+def test_audit_persist_writes_db_and_history_list_reads_it(tmp_path: Path) -> None:
+    target = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
+    db = tmp_path / "h.sqlite"
+
+    audit_result = runner.invoke(app, ["audit", str(target), "--persist", str(db)])
+    assert db.exists()
+    assert "Persisted run" in audit_result.output
+
+    list_result = runner.invoke(app, ["history", "list", str(db)])
+    assert list_result.exit_code == 0
+    assert "mlsecops history" in list_result.output
+    # Rich truncates long Windows paths; assert the 12-char run_id prefix is present
+    # (the run we just persisted) — that confirms the row rendered.
+    import re
+    assert re.search(r"\b[0-9a-f]{12}\b", list_result.output) is not None
+
+
+def test_history_show_renders_findings(tmp_path: Path) -> None:
+    import re
+
+    target = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
+    db = tmp_path / "h.sqlite"
+    runner.invoke(app, ["audit", str(target), "--persist", str(db)])
+
+    list_out = runner.invoke(app, ["history", "list", str(db)]).output
+    match = re.search(r"\b[0-9a-f]{12}\b", list_out)
+    assert match is not None
+    rid_prefix = match.group(0)
+
+    show_result = runner.invoke(app, ["history", "show", str(db), rid_prefix])
+    assert show_result.exit_code == 0
+    assert "supply_chain.un" in show_result.output
+
+
+def test_history_list_on_empty_db_is_noop(tmp_path: Path) -> None:
+    from mlsecops_agent.storage import init_db
+
+    db = tmp_path / "empty.sqlite"
+    init_db(db)
+
+    result = runner.invoke(app, ["history", "list", str(db)])
+    assert result.exit_code == 0
+    assert "no runs" in result.output.lower()
+
+
+def test_history_show_rejects_ambiguous_prefix(tmp_path: Path) -> None:
+    from mlsecops_agent.storage import Repository
+
+    db = tmp_path / "h.sqlite"
+    repo = Repository(db)
+    repo.record_run(target="/a", results=[], run_id="abc1230000000000")
+    repo.record_run(target="/b", results=[], run_id="abc1234000000000")
+
+    result = runner.invoke(app, ["history", "show", str(db), "abc123"])
+    assert result.exit_code != 0
+    assert "multiple" in result.output.lower()
