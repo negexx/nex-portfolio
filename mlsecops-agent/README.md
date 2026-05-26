@@ -25,7 +25,7 @@ Every finding is produced by a deterministic tool. The LLM never *decides* what 
 uv sync --extra dev
 
 # (Optional) configure LLM backend — only required for the agent loop (W3.2+)
-cp .env.example .env.local
+cp .env.template .env.local
 $EDITOR .env.local   # set DEEPSEEK_API_KEY
 
 # Audit a target repo or notebook (runs all 5 checks bar adversarial)

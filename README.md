@@ -122,7 +122,7 @@ DoS / Normal / Probe are well-handled; R2L and U2R are tiny classes with novel a
 
 Raw artifacts: [`v2_classical_results.json`](v2_classical_results.json) (per-model accuracy / F1 / train time), [`v2_classical_log.txt`](v2_classical_log.txt) (full stdout), [`v2_confusion_matrix.png`](v2_confusion_matrix.png).
 
-> **Deep models (Conv1D CNN + LSTM) status:** still deferred to Colab. Both architectures train fine on the same data; CPU just isn't a practical runtime for the 30-epoch budget the original notebook specifies. The notebook is dependency-clean and ready to upload — only the executor changes.
+> **Deep models (Conv1D CNN + LSTM) status:** still deferred to Colab. Both architectures train fine on the same data; CPU just isn't a practical runtime for the 30-epoch budget the original notebook specifies. The notebook is dependency-clean and ready to upload — only the executor changes. [`nids_pipeline_v2_colab.ipynb`](nids_pipeline_v2_colab.ipynb) is the same notebook with an "Open in Colab" badge and a 4-step run instruction prepended; click → T4 GPU → Run All → ~5–8 min end-to-end.
 
 ---
 
