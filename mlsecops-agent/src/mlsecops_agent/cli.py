@@ -167,6 +167,16 @@ def audit(
             writable=True,
         ),
     ] = None,
+    include_adversarial: Annotated[
+        bool,
+        typer.Option(
+            "--include-adversarial",
+            help=(
+                "Opt in to the adversarial check. Loads saved Keras models in the "
+                "target dir and runs FGSM evasion attacks. Requires TensorFlow + ART."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run every registered check against a target repo or file."""
     target = Path(path)
@@ -181,7 +191,10 @@ def audit(
     results: list[CheckResult] = []
     for check_name in selected:
         runner = CHECKS[check_name]
-        results.append(runner(target))
+        if check_name is CheckName.ADVERSARIAL:
+            results.append(runner(target, include_adversarial=include_adversarial))
+        else:
+            results.append(runner(target))
 
     _render_summary(results)
     for r in results:

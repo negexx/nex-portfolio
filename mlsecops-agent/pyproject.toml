@@ -114,6 +114,7 @@ module = [
     "pip_audit.*",
     "safety.*",
     "semgrep.*",
+    "tensorflow.*",
 ]
 ignore_missing_imports = true
 ignore_errors = true

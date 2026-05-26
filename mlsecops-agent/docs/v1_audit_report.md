@@ -1,7 +1,7 @@
 # mlsecops audit report
 
 - **Target:** `..\nids_v1_baseline.ipynb`
-- **Generated:** 2026-05-26 00:06:21 UTC
+- **Generated:** 2026-05-26 00:18:11 UTC
 - **Total findings:** 17
 - **Exit status:** ❌ blocking (HIGH/CRITICAL present)
 
@@ -9,14 +9,15 @@
 
 | Check | Findings | Max severity | Duration | Status |
 |---|---:|---|---:|---|
-| `deserialization` | 8 | 🟠 high | 1348ms | issues |
-| `leakage` | 2 | 🟠 high | 656ms | issues |
-| `supply_chain` | 7 | 🟡 medium | 4ms | issues |
+| `deserialization` | 8 | 🟠 high | 1604ms | issues |
+| `leakage` | 2 | 🟠 high | 742ms | issues |
+| `supply_chain` | 7 | 🟡 medium | 5ms | issues |
+| `adversarial` | 0 | — | 0ms | clean |
 | `secrets` | 0 | — | 2ms | clean |
 
 ## `deserialization` — 8 finding(s)
 
-_Tool status: `ok`. Duration: 1348ms._
+_Tool status: `ok`. Duration: 1604ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -42,7 +43,7 @@ _Tool status: `ok`. Duration: 1348ms._
 
 ## `leakage` — 2 finding(s)
 
-_Tool status: `ok`. Duration: 656ms._
+_Tool status: `ok`. Duration: 742ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -56,7 +57,7 @@ _Tool status: `ok`. Duration: 656ms._
 
 ## `supply_chain` — 7 finding(s)
 
-_Tool status: `ok`. Duration: 4ms._
+_Tool status: `ok`. Duration: 5ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -77,6 +78,12 @@ _Tool status: `ok`. Duration: 4ms._
 - **`supply_chain.untrusted-wget-source`** at `..\nids_v1_baseline.ipynb`:2 (medium confidence) — After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest.
 - **`supply_chain.untrusted-wget-source`** at `..\nids_v1_baseline.ipynb`:2 (medium confidence) — After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest.
 - **`supply_chain.untrusted-wget-source`** at `..\nids_v1_baseline.ipynb`:3 (medium confidence) — After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest.
+
+## `adversarial` — 0 finding(s)
+
+_Tool status: `ok`. Duration: 0ms._
+
+No issues found.
 
 ## `secrets` — 0 finding(s)
 
