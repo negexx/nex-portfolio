@@ -1,21 +1,22 @@
 # mlsecops audit report
 
 - **Target:** `..\nids_v1_baseline.ipynb`
-- **Generated:** 2026-05-25 23:48:57 UTC
-- **Total findings:** 15
+- **Generated:** 2026-05-26 00:06:21 UTC
+- **Total findings:** 17
 - **Exit status:** ❌ blocking (HIGH/CRITICAL present)
 
 ## Summary
 
 | Check | Findings | Max severity | Duration | Status |
 |---|---:|---|---:|---|
-| `deserialization` | 8 | 🟠 high | 1416ms | issues |
-| `supply_chain` | 7 | 🟡 medium | 9ms | issues |
+| `deserialization` | 8 | 🟠 high | 1348ms | issues |
+| `leakage` | 2 | 🟠 high | 656ms | issues |
+| `supply_chain` | 7 | 🟡 medium | 4ms | issues |
 | `secrets` | 0 | — | 2ms | clean |
 
 ## `deserialization` — 8 finding(s)
 
-_Tool status: `ok`. Duration: 1416ms._
+_Tool status: `ok`. Duration: 1348ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -39,9 +40,23 @@ _Tool status: `ok`. Duration: 1416ms._
 - **`deserialization.unsafe-numpy-load`** at `..\nids_v1_baseline.ipynb`:893 (high confidence) — Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify.
 - **`deserialization.unsafe-numpy-load`** at `..\nids_v1_baseline.ipynb`:907 (high confidence) — Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify.
 
+## `leakage` — 2 finding(s)
+
+_Tool status: `ok`. Duration: 656ms._
+
+| Severity | Rule | Location | Message | Evidence |
+|---|---|---|---|---|
+| 🟠 high | `leakage.label-proxy-feature` | `..\nids_v1_baseline.ipynb:1` | [cell 2] Column `difficulty_level` in an assignment matches a label-proxy pattern. If this column encodes the target (directly or indirectly) and is included in the feature set, the model will have access to the answer at inference time. | `[     'duration','protocol_type','service','flag','src_bytes','dst_bytes','land',     'wrong_fragment','urgent','hot','num_failed_logins','logged_in',     'num_compromised','root_shell','su_attempted'` |
+| 🟠 high | `leakage.label-proxy-feature` | `..\nids_v1_baseline.ipynb:13` | [cell 13] Column `difficulty_level` in an assignment matches a label-proxy pattern. If this column encodes the target (directly or indirectly) and is included in the feature set, the model will have access to the answer at inference time. | `[     'duration','protocol_type','service','flag','src_bytes','dst_bytes','land',     'wrong_fragment','urgent','hot','num_failed_logins','logged_in',     'num_compromised','root_shell','su_attempted'` |
+
+### Fix proposals
+
+- **`leakage.label-proxy-feature`** at `..\nids_v1_baseline.ipynb`:1 (medium confidence) — Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training.
+- **`leakage.label-proxy-feature`** at `..\nids_v1_baseline.ipynb`:13 (medium confidence) — Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training.
+
 ## `supply_chain` — 7 finding(s)
 
-_Tool status: `ok`. Duration: 9ms._
+_Tool status: `ok`. Duration: 4ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|

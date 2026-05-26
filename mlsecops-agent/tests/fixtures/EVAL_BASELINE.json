@@ -16,6 +16,28 @@
       ]
     },
     {
+      "file": "leakage/negative_correct_pipeline.ipynb",
+      "expected_ids": []
+    },
+    {
+      "file": "leakage/positive_difficulty_proxy.ipynb",
+      "expected_ids": [
+        "leakage.label-proxy-feature"
+      ]
+    },
+    {
+      "file": "leakage/positive_fit_on_test.py",
+      "expected_ids": [
+        "leakage.fit-on-test"
+      ]
+    },
+    {
+      "file": "leakage/positive_smote_before_split.ipynb",
+      "expected_ids": [
+        "leakage.preprocessing-before-split"
+      ]
+    },
+    {
       "file": "secrets/negative_safe_secret_handling.ipynb",
       "expected_ids": []
     },

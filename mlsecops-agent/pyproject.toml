@@ -93,6 +93,7 @@ ignore = [
 "src/mlsecops_agent/models.py" = ["TC001", "TC002", "TC003"]
 # libcst CSTVisitor protocol requires visit_Call (mixed-case) — not our naming choice.
 "src/mlsecops_agent/checks/deserialization.py" = ["N802"]
+"src/mlsecops_agent/checks/leakage.py" = ["N802"]
 
 [tool.mypy]
 python_version = "3.13"
