@@ -88,12 +88,14 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "TC002", "TC003"]
 # Pydantic needs runtime access to typing imports for model validation.
 "src/mlsecops_agent/models.py" = ["TC001", "TC002", "TC003"]
 # libcst CSTVisitor protocol requires visit_Call (mixed-case) — not our naming choice.
 "src/mlsecops_agent/checks/deserialization.py" = ["N802"]
 "src/mlsecops_agent/checks/leakage.py" = ["N802"]
+# langfuse is lazy-imported at runtime — moving it to TYPE_CHECKING would break the logic.
+"src/mlsecops_agent/llm/tracer.py" = ["TC002"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -110,6 +112,7 @@ files = ["src/mlsecops_agent"]
 module = [
     "art.*",
     "detect_secrets.*",
+    "langfuse.*",
     "nbformat.*",
     "pip_audit.*",
     "safety.*",

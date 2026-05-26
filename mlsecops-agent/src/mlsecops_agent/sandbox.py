@@ -36,18 +36,18 @@ if TYPE_CHECKING:
 SandboxBackend = Literal["vercel", "e2b", "none"]
 
 
-class SandboxNotConfigured(RuntimeError):
+class SandboxNotConfiguredError(RuntimeError):
     """Raised when sandbox isolation is requested but no backend is wired."""
 
 
 class Sandbox:
-    """Stub interface. The methods below all raise ``SandboxNotConfigured``."""
+    """Stub interface. The methods below all raise ``SandboxNotConfiguredError``."""
 
     def __init__(self, backend: SandboxBackend = "none") -> None:
         self.backend = backend
 
     @classmethod
-    def from_env(cls) -> "Sandbox":
+    def from_env(cls) -> Sandbox:
         """Resolve the configured backend from environment variables.
 
         Currently always returns the ``none`` stub. Implementation lands when
@@ -59,9 +59,9 @@ class Sandbox:
             return cls(backend="e2b")
         return cls(backend="none")
 
-    def session(self, *, timeout_s: int = 300) -> "SandboxSession":  # noqa: ARG002
+    def session(self, *, timeout_s: int = 300) -> SandboxSession:
         if self.backend == "none":
-            raise SandboxNotConfigured(
+            raise SandboxNotConfiguredError(
                 "No sandbox backend configured. Set VERCEL_TOKEN or E2B_API_KEY "
                 "to enable isolated execution of target ML code. See ADR 0005."
             )
@@ -73,19 +73,19 @@ class Sandbox:
 class SandboxSession:
     """Per-run session against a live sandbox. Stub for now."""
 
-    def __enter__(self) -> "SandboxSession":  # pragma: no cover — never reached
+    def __enter__(self) -> SandboxSession:  # pragma: no cover — never reached
         return self
 
     def __exit__(self, *_args: object) -> None:  # pragma: no cover
         return
 
-    def upload(self, _local_path: "Path") -> None:  # pragma: no cover
+    def upload(self, _local_path: Path) -> None:  # pragma: no cover
         raise NotImplementedError
 
-    def run(self, _command: str) -> "SandboxRunResult":  # pragma: no cover
+    def run(self, _command: str) -> SandboxRunResult:  # pragma: no cover
         raise NotImplementedError
 
-    def iter_results(self) -> "Iterator[str]":  # pragma: no cover
+    def iter_results(self) -> Iterator[str]:  # pragma: no cover
         raise NotImplementedError
 
 

@@ -1,0 +1,52 @@
+rules:
+  - id: ml-hygiene.fit-on-test-arg
+    patterns:
+      - pattern: $OBJ.fit($TEST, ...)
+      - metavariable-regex:
+          metavariable: $TEST
+          regex: ^X_?test|^test_?[XY]
+    message: |
+      `$OBJ.fit($TEST, ...)` fits a transformer or model on a test-set variable.
+      Any statistics computed here leak test-set information into the training
+      pipeline and produce optimistically biased evaluation metrics.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: data-leakage
+      fix: >
+        Replace `.fit($TEST)` with `.transform($TEST)`.
+        Only fit on the training split; apply transform to validation/test splits.
+
+  - id: ml-hygiene.fit-transform-on-test-arg
+    patterns:
+      - pattern: $OBJ.fit_transform($TEST, ...)
+      - metavariable-regex:
+          metavariable: $TEST
+          regex: ^X_?test|^test_?[XY]
+    message: |
+      `$OBJ.fit_transform($TEST, ...)` fits and transforms on a test-set variable.
+      This leaks test-set statistics into the pipeline.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: data-leakage
+      fix: >
+        Replace `.fit_transform($TEST)` with `.transform($TEST)`.
+
+  - id: ml-hygiene.train-test-split-with-shuffle-false
+    patterns:
+      - pattern: train_test_split(..., shuffle=False, ...)
+      - pattern-not: train_test_split(..., shuffle=False, ..., stratify=..., ...)
+      - pattern-not: train_test_split(..., stratify=..., ..., shuffle=False, ...)
+    message: |
+      `train_test_split(..., shuffle=False)` without `stratify=` destroys class-balance
+      assumptions. If this is not a time-series split, downstream metrics (accuracy,
+      F1, AUC) computed on the resulting test set may be skewed by the original
+      ordering of the dataset.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: data-leakage
+      fix: >
+        For time-series: this is intentional — add a comment explaining why.
+        Otherwise: remove `shuffle=False` or add `stratify=y` to preserve class proportions.

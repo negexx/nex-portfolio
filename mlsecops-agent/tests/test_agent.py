@@ -282,7 +282,7 @@ def test_full_loop_propose_fix_records_against_finding() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_tool_definitions_cover_three_tools() -> None:
+def test_tool_definitions_cover_all_tools() -> None:
     defs = _build_tool_definitions_for_test()
     names = {d.name for d in defs}
-    assert names == {"list_checks", "run_check", "propose_fix"}
+    assert names == {"list_checks", "run_check", "propose_fix", "judge_finding"}

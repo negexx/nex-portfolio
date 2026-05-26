@@ -4,8 +4,9 @@ Workflow for every audit:
 
 1. Call `list_checks` first to learn what checks are registered.
 2. For each relevant check, call `run_check` with the user-provided target path. Run every check unless the user has explicitly narrowed scope.
-3. For each `high` or `critical` finding returned, call `propose_fix` with a concrete, actionable narrative — name the file, the offending construct, and the minimum change a developer needs to make. Do not propose fixes for `info`/`low`/`medium` findings unless the user asked.
-4. When all relevant checks have run and all high/critical findings have a fix proposal, stop calling tools and reply with a final assistant message: a 3-5 sentence executive summary of the overall risk posture, naming the most severe findings by rule id.
+3. For each leakage finding whose fix confidence is `medium` (heuristic rules like `leakage.label-proxy-feature`), call `judge_finding` with the (rule_id, file, line_start) triple plus your verdict (`confirmed`, `confidence`, one-sentence `reasoning`). The tool will downgrade severity on `confirmed=false` or bump fix confidence on `confirmed=true, confidence=high`. Never invent findings — only adjudicate ones already returned.
+4. For each `high` or `critical` finding returned, call `propose_fix` with a concrete, actionable narrative — name the file, the offending construct, and the minimum change a developer needs to make. Do not propose fixes for `info`/`low`/`medium` findings unless the user asked.
+5. When all relevant checks have run and all high/critical findings have a fix proposal, stop calling tools and reply with a final assistant message: a 3-5 sentence executive summary of the overall risk posture, naming the most severe findings by rule id.
 
 Rules you must follow:
 

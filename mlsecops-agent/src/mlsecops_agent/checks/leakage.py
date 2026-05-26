@@ -37,6 +37,7 @@ import libcst as cst
 import libcst.metadata as meta
 
 from ..models import CheckName, CheckResult, Finding, FixProposal, Severity
+from . import semgrep_rules
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -572,8 +573,34 @@ def _iter_targets(path: Path) -> Iterable[Path]:
         yield from path.glob(pattern)
 
 
+def _dedup_findings(findings: list[Finding]) -> list[Finding]:
+    """Remove duplicate findings that share (id, file, line_start).
+
+    When both the AST pass and the semgrep pass detect the same issue on the
+    same line the AST finding is kept (it arrived first in the list) and the
+    semgrep duplicate is dropped. Findings without a line_start are never
+    considered duplicates of each other.
+    """
+    seen: set[tuple[str, str, int]] = set()
+    deduped: list[Finding] = []
+    for finding in findings:
+        if finding.line_start is None:
+            deduped.append(finding)
+            continue
+        key = (finding.id, str(finding.file), finding.line_start)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(finding)
+    return deduped
+
+
 def run(target: Path) -> CheckResult:
     """Run the leakage check against a file or directory.
+
+    Combines AST-derived findings from libcst with pattern-match findings from
+    semgrep (``rules/ml-hygiene.yml``). Duplicates — same rule, same file, same
+    line — are removed so an issue caught by both sources is reported once.
 
     Returns a :class:`~mlsecops_agent.models.CheckResult` whose ``findings``
     list is empty when no issues are found.
@@ -589,6 +616,14 @@ def run(target: Path) -> CheckResult:
                 findings.extend(_scan_notebook(target_file))
         except (OSError, json.JSONDecodeError):
             continue
+
+    # Semgrep augments the AST pass — it covers .py files and adds pattern
+    # rules that are awkward to express in libcst. Notebooks are excluded
+    # because semgrep cannot parse .ipynb cells natively.
+    sg_findings = semgrep_rules.run_semgrep(target)
+    findings.extend(sg_findings)
+
+    findings = _dedup_findings(findings)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     return CheckResult(

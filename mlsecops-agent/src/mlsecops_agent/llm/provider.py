@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, Field
 
+from .tracer import LangfuseTracer
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -143,6 +145,7 @@ class LLMProvider:
         base_url: str | None = None,
         model_default: str | None = None,
         model_hard: str | None = None,
+        tracer: LangfuseTracer | None = None,
     ) -> None:
         self._api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         self._base_url = base_url or os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
@@ -152,6 +155,7 @@ class LLMProvider:
         self._model_hard = model_hard or os.environ.get(
             "DEEPSEEK_MODEL_HARD", DEFAULT_MODEL_HARD
         )
+        self._tracer = tracer if tracer is not None else LangfuseTracer()
 
     def _model_for_tier(self, tier: Tier) -> str:
         return self._model_hard if tier == "hard" else self._model_default
@@ -162,8 +166,13 @@ class LLMProvider:
         *,
         tools: Sequence[ToolDefinition] | None = None,
         tier: Tier = "default",
+        trace_metadata: dict[str, str] | None = None,
     ) -> ChatResponse:
         """Call the chat-completions endpoint and return a normalized response.
+
+        ``trace_metadata`` is forwarded to the Langfuse generation span as
+        metadata (e.g. ``{"iteration": "3", "tier": "default"}``).  When
+        Langfuse is disabled or unavailable the parameter is silently ignored.
 
         Raises :class:`LLMProviderError` when the API key is missing, the SDK
         cannot be imported, or the upstream call fails.
@@ -197,22 +206,50 @@ class LLMProvider:
             else None
         )
 
-        try:
-            if payload_tools is not None:
-                completion = client.chat.completions.create(
-                    model=model,
-                    messages=payload_messages,
-                    tools=payload_tools,
-                )
-            else:
-                completion = client.chat.completions.create(
-                    model=model,
-                    messages=payload_messages,
-                )
-        except Exception as exc:
-            raise LLMProviderError(f"upstream chat-completions call failed: {exc}") from exc
+        input_payload: dict[str, object] = {
+            "messages": [self._serialize_message(m) for m in messages],
+            "tools": [self._serialize_tool(t) for t in (tools or [])],
+        }
+        meta: dict[str, str] = {"tier": tier}
+        if trace_metadata:
+            meta.update(trace_metadata)
 
-        return self._normalize_completion(completion, model=model, tier=tier)
+        with self._tracer.generation(
+            "llm.chat",
+            input_payload=input_payload,
+            model=model,
+            metadata=meta,
+        ):
+            try:
+                if payload_tools is not None:
+                    completion = client.chat.completions.create(
+                        model=model,
+                        messages=payload_messages,
+                        tools=payload_tools,
+                    )
+                else:
+                    completion = client.chat.completions.create(
+                        model=model,
+                        messages=payload_messages,
+                    )
+            except Exception as exc:
+                raise LLMProviderError(
+                    f"upstream chat-completions call failed: {exc}"
+                ) from exc
+
+            response = self._normalize_completion(completion, model=model, tier=tier)
+            self._tracer.update_generation(
+                output={
+                    "content": response.message.content,
+                    "tool_calls": [tc.model_dump() for tc in response.message.tool_calls],
+                },
+                usage_details={
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                },
+            )
+            return response
 
     @staticmethod
     def _serialize_message(message: ChatMessage) -> dict[str, object]:
@@ -320,12 +357,14 @@ class MockLLMProvider:
         *,
         tools: Sequence[ToolDefinition] | None = None,
         tier: Tier = "default",
+        trace_metadata: dict[str, str] | None = None,
     ) -> ChatResponse:
         self.calls.append(
             {
                 "messages": [m.model_dump() for m in messages],
                 "tools": [t.model_dump() for t in (tools or [])],
                 "tier": tier,
+                "trace_metadata": trace_metadata,
             }
         )
         if self._cursor >= len(self._responses):

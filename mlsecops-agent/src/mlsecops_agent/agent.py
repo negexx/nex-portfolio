@@ -8,10 +8,13 @@ path without a network or an API key.
 
 The three tools the LLM can call:
 
-- ``list_checks`` — list registered checks and one-line descriptions.
-- ``run_check``   — invoke one check against the target, return findings.
-- ``propose_fix`` — record an LLM-authored fix against a finding produced
+- ``list_checks``   — list registered checks and one-line descriptions.
+- ``run_check``     — invoke one check against the target, return findings.
+- ``propose_fix``   — record an LLM-authored fix against a finding produced
   earlier in the same run.
+- ``judge_finding`` — ask the LLM whether a deterministic candidate is a real
+  issue. The LLM cannot invent findings; it can only confirm/downgrade an
+  existing AST hit, identified by ``(rule_id, file, line_start)``.
 
 Any other tool name, malformed arguments, or unknown finding id is reported
 back to the LLM as a structured tool error so it can recover, rather than
@@ -30,12 +33,13 @@ from pydantic import BaseModel, Field, ValidationError
 from .checks import CHECKS
 from .llm import (
     ChatMessage,
+    LangfuseTracer,
     LLMProvider,
     MockLLMProvider,
     ToolCall,
     ToolDefinition,
 )
-from .models import CheckName, CheckResult, Finding
+from .models import CheckName, CheckResult, Finding, FixProposal, Severity
 from .prompts import load_system_prompt
 
 # ---------------------------------------------------------------------------
@@ -62,6 +66,44 @@ class ProposeFixArgs(BaseModel):
         description="Zero-based index into the run's collected findings list."
     )
     narrative: str
+
+
+class JudgeFindingArgs(BaseModel):
+    """Arguments accepted by the ``judge_finding`` tool.
+
+    The (rule_id, file, line_start) triple must match an existing in-flight
+    finding exactly — the LLM cannot invent a new one.
+    """
+
+    rule_id: str
+    file: str
+    line_start: int
+    evidence: str
+    confirmed: bool
+    confidence: Literal["low", "medium", "high"]
+    reasoning: str
+
+
+class Verdict(BaseModel):
+    """The LLM's judgement on an AST-flagged candidate."""
+
+    confirmed: bool
+    confidence: Literal["low", "medium", "high"]
+    reasoning: str
+
+
+class JudgeFindingResult(BaseModel):
+    """Confirmation payload returned by ``judge_finding``."""
+
+    ok: Literal[True]
+    rule_id: str
+    file: str
+    line_start: int
+    previous_severity: str
+    new_severity: str
+    previous_fix_confidence: str | None
+    new_fix_confidence: str | None
+    verdict: Verdict
 
 
 class CheckSummary(BaseModel):
@@ -236,6 +278,66 @@ def _tool_definitions() -> list[ToolDefinition]:
                 "additionalProperties": False,
             },
         ),
+        ToolDefinition(
+            name="judge_finding",
+            description=(
+                "Adjudicate a deterministic candidate from an earlier run_check. "
+                "Identify the finding by (rule_id, file, line_start) — these must "
+                "match a finding already in this run; the tool cannot create new "
+                "ones. confirmed=False downgrades severity one tier (CRITICAL->HIGH, "
+                "HIGH->MEDIUM, MEDIUM->LOW); confirmed=True with confidence='high' "
+                "bumps the fix confidence to 'high'. The reasoning is appended to "
+                "the finding's evidence with a [LLM judgement] prefix. Use this for "
+                "leakage findings that are name-match heuristics (label-proxy)."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "string",
+                        "description": "Stable rule id, e.g. 'leakage.label-proxy-feature'.",
+                    },
+                    "file": {
+                        "type": "string",
+                        "description": "Absolute file path of the finding.",
+                    },
+                    "line_start": {
+                        "type": "integer",
+                        "description": "Line number of the finding.",
+                    },
+                    "evidence": {
+                        "type": "string",
+                        "description": (
+                            "Raw evidence text the AST produced. Echoed back for "
+                            "audit but not used to match the finding."
+                        ),
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "True if you judge this to be a real issue.",
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                        "description": "Your confidence in the verdict.",
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "One-sentence justification appended to evidence.",
+                    },
+                },
+                "required": [
+                    "rule_id",
+                    "file",
+                    "line_start",
+                    "evidence",
+                    "confirmed",
+                    "confidence",
+                    "reasoning",
+                ],
+                "additionalProperties": False,
+            },
+        ),
     ]
 
 
@@ -311,7 +413,9 @@ def _handle_run_check(state: _AuditState, raw_args: dict[str, object]) -> str:
     summaries: list[FindingSummary] = []
     for finding in result.findings:
         idx = len(state.findings)
-        state.findings.append(finding)
+        # Deep-copy so later judge_finding mutations on the in-flight list do
+        # not bleed into state.check_results (which is the raw AST history).
+        state.findings.append(finding.model_copy(deep=True))
         summaries.append(
             FindingSummary(
                 finding_id_in_run=idx,
@@ -378,11 +482,101 @@ class _ProposeFixAck(BaseModel):
     total_proposals: int
 
 
+# Severity downgrade ladder. CRITICAL/HIGH/MEDIUM step down one tier on a
+# confirmed=False verdict; LOW/INFO stay put (no tier below INFO).
+_SEVERITY_DOWNGRADE: dict[Severity, Severity] = {
+    Severity.CRITICAL: Severity.HIGH,
+    Severity.HIGH: Severity.MEDIUM,
+    Severity.MEDIUM: Severity.LOW,
+}
+
+
+def _handle_judge_finding(state: _AuditState, raw_args: dict[str, object]) -> str:
+    try:
+        args = JudgeFindingArgs.model_validate(raw_args)
+    except ValidationError as exc:
+        return _serialize_tool_result(
+            ToolErrorPayload(error="invalid_arguments", detail=exc.errors().__repr__())
+        )
+
+    # The LLM cannot invent findings: locate an in-flight finding matching the
+    # (rule_id, file, line_start) triple. If none, error.
+    match_idx: int | None = None
+    for idx, finding in enumerate(state.findings):
+        if (
+            finding.id == args.rule_id
+            and str(finding.file) == args.file
+            and finding.line_start == args.line_start
+        ):
+            match_idx = idx
+            break
+
+    if match_idx is None:
+        return _serialize_tool_result(
+            ToolErrorPayload(
+                error="unknown_finding",
+                detail=(
+                    f"no in-flight finding matches rule_id='{args.rule_id}' "
+                    f"file='{args.file}' line_start={args.line_start}. "
+                    "judge_finding cannot create new findings — it can only "
+                    "evaluate ones already produced by a check."
+                ),
+            )
+        )
+
+    finding = state.findings[match_idx]
+    previous_severity = finding.severity
+    previous_fix_conf = finding.fix.confidence if finding.fix is not None else None
+
+    verdict = Verdict(
+        confirmed=args.confirmed,
+        confidence=args.confidence,
+        reasoning=args.reasoning,
+    )
+
+    new_severity = previous_severity
+    new_fix: FixProposal | None = finding.fix
+    if args.confirmed:
+        if args.confidence == "high" and finding.fix is not None:
+            new_fix = finding.fix.model_copy(update={"confidence": "high"})
+    else:
+        new_severity = _SEVERITY_DOWNGRADE.get(previous_severity, previous_severity)
+
+    appended_evidence = (
+        f"\n[LLM judgement] confirmed={args.confirmed} "
+        f"confidence={args.confidence}: {args.reasoning}"
+    )
+    new_evidence = finding.evidence + appended_evidence
+
+    state.findings[match_idx] = finding.model_copy(
+        update={
+            "severity": new_severity,
+            "evidence": new_evidence,
+            "fix": new_fix,
+        }
+    )
+
+    return _serialize_tool_result(
+        JudgeFindingResult(
+            ok=True,
+            rule_id=args.rule_id,
+            file=args.file,
+            line_start=args.line_start,
+            previous_severity=previous_severity.value,
+            new_severity=new_severity.value,
+            previous_fix_confidence=previous_fix_conf,
+            new_fix_confidence=new_fix.confidence if new_fix is not None else None,
+            verdict=verdict,
+        )
+    )
+
+
 _ToolHandlerFn = Callable[[_AuditState, dict[str, object]], str]
 _DISPATCH_TABLE: dict[str, _ToolHandlerFn] = {
     "list_checks": _handle_list_checks,
     "run_check": _handle_run_check,
     "propose_fix": _handle_propose_fix,
+    "judge_finding": _handle_judge_finding,
 }
 
 
@@ -425,7 +619,17 @@ def run_audit_with_agent(
     Iterates until either the assistant returns a message with no tool calls
     (final answer) or ``max_iterations`` is reached.  The transcript records
     whether the cap was hit so callers can flag a stalled run.
+
+    Each ``provider.chat()`` call is wrapped as a Langfuse generation child
+    span under a parent trace named ``mlsecops.audit``.  When Langfuse is not
+    configured (or the package is absent) the behaviour is identical to before.
     """
+    # Obtain the tracer from the provider when it is a real LLMProvider;
+    # MockLLMProvider does not hold one so we fall back to a fresh no-op tracer.
+    tracer: LangfuseTracer = (
+        provider._tracer if isinstance(provider, LLMProvider) else LangfuseTracer()
+    )
+
     state = _AuditState(target=target)
     tools = _tool_definitions()
     system_prompt = load_system_prompt()
@@ -444,34 +648,39 @@ def run_audit_with_agent(
     hit_cap = True  # flipped to False once we exit cleanly via no-more-tool-calls
     iterations = 0
 
-    for iteration in range(max_iterations):
-        iterations = iteration + 1
-        response = provider.chat(messages, tools=tools)
-        assistant_msg = response.message
-
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content=assistant_msg.content,
-                tool_calls=list(assistant_msg.tool_calls),
+    with tracer.trace(f"mlsecops.audit:{target.name}"):
+        for iteration in range(max_iterations):
+            iterations = iteration + 1
+            response = provider.chat(
+                messages,
+                tools=tools,
+                trace_metadata={"iteration": str(iteration)},
             )
-        )
+            assistant_msg = response.message
 
-        if not assistant_msg.tool_calls:
-            final_summary = assistant_msg.content
-            hit_cap = False
-            break
-
-        for call in assistant_msg.tool_calls:
-            result_json = _dispatch_tool_call(state, call)
             messages.append(
                 ChatMessage(
-                    role="tool",
-                    content=result_json,
-                    tool_call_id=call.id,
-                    name=call.name,
+                    role="assistant",
+                    content=assistant_msg.content,
+                    tool_calls=list(assistant_msg.tool_calls),
                 )
             )
+
+            if not assistant_msg.tool_calls:
+                final_summary = assistant_msg.content
+                hit_cap = False
+                break
+
+            for call in assistant_msg.tool_calls:
+                result_json = _dispatch_tool_call(state, call)
+                messages.append(
+                    ChatMessage(
+                        role="tool",
+                        content=result_json,
+                        tool_call_id=call.id,
+                        name=call.name,
+                    )
+                )
 
     return AuditTranscript(
         target=target,
@@ -489,8 +698,10 @@ __all__ = [
     "AuditTranscript",
     "FindingSummary",
     "FixProposalRecord",
+    "JudgeFindingResult",
     "RunCheckResult",
     "ToolErrorPayload",
+    "Verdict",
     "run_audit_with_agent",
 ]
 

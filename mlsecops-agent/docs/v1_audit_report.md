@@ -1,7 +1,7 @@
 # mlsecops audit report
 
 - **Target:** `..\nids_v1_baseline.ipynb`
-- **Generated:** 2026-05-26 00:18:11 UTC
+- **Generated:** 2026-05-26 01:21:57 UTC
 - **Total findings:** 17
 - **Exit status:** ❌ blocking (HIGH/CRITICAL present)
 
@@ -9,15 +9,15 @@
 
 | Check | Findings | Max severity | Duration | Status |
 |---|---:|---|---:|---|
-| `deserialization` | 8 | 🟠 high | 1604ms | issues |
-| `leakage` | 2 | 🟠 high | 742ms | issues |
-| `supply_chain` | 7 | 🟡 medium | 5ms | issues |
+| `deserialization` | 8 | 🟠 high | 1006ms | issues |
+| `leakage` | 2 | 🟠 high | 4010ms | issues |
+| `supply_chain` | 7 | 🟡 medium | 3ms | issues |
 | `adversarial` | 0 | — | 0ms | clean |
-| `secrets` | 0 | — | 2ms | clean |
+| `secrets` | 0 | — | 1ms | clean |
 
 ## `deserialization` — 8 finding(s)
 
-_Tool status: `ok`. Duration: 1604ms._
+_Tool status: `ok`. Duration: 1006ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -43,7 +43,7 @@ _Tool status: `ok`. Duration: 1604ms._
 
 ## `leakage` — 2 finding(s)
 
-_Tool status: `ok`. Duration: 742ms._
+_Tool status: `ok`. Duration: 4010ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -57,7 +57,7 @@ _Tool status: `ok`. Duration: 742ms._
 
 ## `supply_chain` — 7 finding(s)
 
-_Tool status: `ok`. Duration: 5ms._
+_Tool status: `ok`. Duration: 3ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -87,6 +87,6 @@ No issues found.
 
 ## `secrets` — 0 finding(s)
 
-_Tool status: `ok`. Duration: 2ms._
+_Tool status: `ok`. Duration: 1ms._
 
 No issues found.

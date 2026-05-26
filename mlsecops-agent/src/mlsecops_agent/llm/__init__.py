@@ -18,6 +18,7 @@ from .provider import (
     ToolDefinition,
     Usage,
 )
+from .tracer import LangfuseTracer
 
 __all__ = [
     "AssistantMessage",
@@ -25,6 +26,7 @@ __all__ = [
     "ChatResponse",
     "LLMProvider",
     "LLMProviderError",
+    "LangfuseTracer",
     "MockLLMProvider",
     "ToolCall",
     "ToolDefinition",
