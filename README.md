@@ -1,6 +1,6 @@
 # nex-portfolio — NIDS pipeline + MLSecOps audit agent
 
-> A solo, three-act portfolio piece. I built an ML system, realised I'd shipped a class of bug that no SAST tool catches, built a Claude-driven agent that catches that class of bug, ran it against my own work, and shipped the fixes as a v2.
+> A solo, three-act portfolio piece. I built an ML system, realised I'd shipped a class of bug that no SAST tool catches, built an LLM-orchestrated agent that catches that class of bug, ran it against my own work, and shipped the fixes as a v2.
 
 This repo is the entire arc, in three artifacts:
 
@@ -22,42 +22,62 @@ This repo is the entire arc, in three artifacts:
 - **Supply-chain rot** — `!pip install ... -q` with no version pin, `!wget` from raw GitHub with no checksum
 - **Model evadability** — the trained LSTM flips on ε ≤ 0.05 FGSM perturbation for the majority of attack samples
 
-None of these would be caught by `bandit`, `ruff`, `mypy`, or a generic SAST tool. They live in the seam between security and ML, and they are the seam this portfolio is about.
+None of these would be caught by `bandit`, `ruff`, `mypy`, or a generic SAST tool. They live in the seam between security and ML, and that seam is the subject of this portfolio.
 
 ## Act 2 — I built the tool that would have caught them
 
-`mlsecops-agent/` is a Python CLI (`mlsecops`) that runs an LLM-orchestrated tool loop over a target ML repo. The backend is DeepSeek-V4 (V4-Flash for orchestration, V4-Pro for hard reasoning) via the OpenAI-compatible API — chosen for cost so the eval harness can run on every PR. The LLM orchestrates and explains; deterministic check modules decide what counts as a vulnerability.
+`mlsecops-agent/` is a Python CLI (`mlsecops`) that runs an LLM-orchestrated tool loop over a target ML repo. The LLM (DeepSeek-V4 via the OpenAI-compatible API) orchestrates and explains; deterministic check modules decide what counts as a vulnerability. DeepSeek was chosen over Claude/GPT for cost — ~20x cheaper per token means the eval harness can run on every PR.
 
-**v0.1 status:** the `supply_chain` check is fully implemented end-to-end (detection, CLI, fixtures, tests). The remaining four checks (`leakage`, `deserialization`, `secrets`, `adversarial`) are scaffolded with the same shape and land next. Architecture, conventions, and ADRs live under [`mlsecops-agent/.claude/`](mlsecops-agent/.claude/).
+**v0.2 status — 4 of 5 checks fully working, 115 tests passing:**
 
-### Working: `supply_chain` check on v1
+| Check | Status | What it surfaces |
+|---|---|---|
+| `supply_chain` | ✅ shipped | Unpinned `!pip install`, unverified `!wget`, requirements.txt CVEs via pip-audit |
+| `deserialization` | ✅ shipped | `joblib.load`, `pickle.load`, `torch.load(weights_only=False)`, `numpy.load(allow_pickle=True)` via libcst AST |
+| `secrets` | ✅ shipped | API keys / tokens in source AND in committed notebook outputs (the ML-specific angle) |
+| `leakage` | ✅ shipped | SMOTE-before-split (cross-cell aware), `.fit(X_test)`, label-proxy features |
+| `adversarial` | 🚧 in progress | FGSM evasion against a saved Keras model — the killer NIDS-relevant demo |
+
+Plus: `mlsecops audit <path>` aggregates all checks with a summary table; `mlsecops eval` runs a fixture-based precision/recall harness against `EVAL_BASELINE.json`; `--report path.md` writes a Markdown audit report. Architecture, conventions, and ADRs live under [`mlsecops-agent/.claude/`](mlsecops-agent/.claude/).
+
+### Working: full audit on v1
 
 ```
-$ uv run mlsecops check supply_chain ../nids_v1_baseline.ipynb
+$ uv run mlsecops audit ../nids_v1_baseline.ipynb
 
-                supply_chain - 7 finding(s) in 3ms
-┌────────┬───────────────────────────────────┬─────────────────────────────┐
-│ Sev    │ Rule                              │ Location                    │
-├────────┼───────────────────────────────────┼─────────────────────────────┤
-│ medium │ supply_chain.unpinned-pip-install │ nids_v1_baseline.ipynb:3    │  # imbalanced-learn
-│ medium │ supply_chain.unpinned-pip-install │ nids_v1_baseline.ipynb:4    │  # imbalanced-learn
-│ medium │ supply_chain.unpinned-pip-install │ nids_v1_baseline.ipynb:1    │  # openai
-│ medium │ supply_chain.untrusted-wget-source│ nids_v1_baseline.ipynb:1    │  # KDDTrain+.txt
-│ medium │ supply_chain.untrusted-wget-source│ nids_v1_baseline.ipynb:2    │  # KDDTest+.txt
-│ medium │ supply_chain.untrusted-wget-source│ nids_v1_baseline.ipynb:2    │  # KDDTrain+.txt
-│ medium │ supply_chain.untrusted-wget-source│ nids_v1_baseline.ipynb:3    │  # KDDTest+.txt
-└────────┴───────────────────────────────────┴─────────────────────────────┘
+                 mlsecops audit summary
+┌─────────────────┬──────────┬──────────────┬──────────┬────────┐
+│ Check           │ Findings │ Max severity │ Duration │ Status │
+├─────────────────┼──────────┼──────────────┼──────────┼────────┤
+│ deserialization │        8 │ high         │   1343ms │ issues │
+│ leakage         │        2 │ high         │    647ms │ issues │
+│ supply_chain    │        7 │ medium       │      4ms │ issues │
+│ secrets         │        0 │ —            │      2ms │ clean  │
+└─────────────────┴──────────┴──────────────┴──────────┴────────┘
 ```
 
-Three unpinned installs, four downloads with no checksum. Full table with fix proposals: [`mlsecops-agent/docs/v1_supply_chain_output.txt`](mlsecops-agent/docs/v1_supply_chain_output.txt).
+**17 findings across 4 checks.** Full Markdown report with per-rule rows, evidence, and fix proposals: [`mlsecops-agent/docs/v1_audit_report.md`](mlsecops-agent/docs/v1_audit_report.md).
 
-The check is real code, not a stub:
+What the agent catches in v1, mapped to the original "mistakes I shipped" list:
+
+| v1 mistake | Agent rule | Verdict |
+|---|---|---|
+| `difficulty_level` label proxy | `leakage.label-proxy-feature` | ✅ caught (2 instances) |
+| `joblib.load` of artifacts | `deserialization.unsafe-joblib-load` | ✅ caught (4 instances) |
+| Unpinned `!pip install` | `supply_chain.unpinned-pip-install` | ✅ caught (3 instances) |
+| `!wget` from raw GitHub | `supply_chain.untrusted-wget-source` | ✅ caught (4 instances) |
+| `numpy.load(allow_pickle=True)` | `deserialization.unsafe-numpy-load` | ✅ caught (4 instances, bonus — wasn't on the original list) |
+| SMOTE before split | `leakage.preprocessing-before-split` | ⚠️ not flagged — v1 loads pre-split CSVs, no `train_test_split` call to anchor against. Honest limitation surfaced by the integration test. |
+| LSTM trivially evadable | `adversarial.fgsm-trivial-evasion` | 🚧 check in progress |
+
+Run it yourself:
 
 ```bash
 cd mlsecops-agent
 uv sync --extra dev
-uv run pytest tests/checks/test_supply_chain.py -v   # 10 tests, all pass
-uv run mlsecops check supply_chain ../nids_v1_baseline.ipynb
+uv run pytest -q                                     # 115 tests, all pass
+uv run mlsecops audit ../nids_v1_baseline.ipynb      # the full audit
+uv run mlsecops eval                                 # P/R per check vs baseline
 ```
 
 ## Act 3 — I fixed v1 and shipped v2
@@ -74,7 +94,7 @@ uv run mlsecops check supply_chain ../nids_v1_baseline.ipynb
 
 Five models are trained (LogReg, Random Forest, HistGBM, Conv1D CNN, LSTM) and compared on the held-out NSL-KDD test set. Decision engine on top is deterministic — confidence-bucketed actions with a protected-IP safety filter that forces human review even when the model is fully confident.
 
-> **Status of v2 numbers in this README:** the notebook is fully written and dependency-clean. End-to-end execution is a ~30-min job (TensorFlow CNN + LSTM, 30 epochs each) that lives in Colab for now; an executed copy with real macro-F1 and confusion-matrix PNGs is committed as [`.v2_run/nids_pipeline_v2.executed.ipynb`](.v2_run/nids_pipeline_v2.executed.ipynb) when the run finishes locally.
+> **Status of v2 numbers:** local execution attempted on Windows + Python 3.13 + CPU TensorFlow. First attempt timed out on the LSTM's 30-epoch fit at the 30-minute ceiling; nbconvert lost all earlier outputs. Currently re-running with `epochs=5` for CNN and LSTM (a deliberate tradeoff — slightly weaker final metrics but the pipeline produces real numbers). An executed copy will land as `nids_pipeline_v2.executed.ipynb` with macro-F1, confusion matrices, and training curves once the run completes. The canonical 30-epoch run is a Colab job.
 
 ---
 
@@ -88,19 +108,26 @@ The intersection of "security" and "ML hygiene" is underserved. Generic SAST too
 
 ```
 nex-portfolio/
-├── nids_v1_baseline.ipynb        # Act 1 — the "before"
-├── nids_pipeline_v2.ipynb        # Act 3 — the "after"
-├── mlsecops-agent/               # Act 2 — the tool that produced the diff
+├── nids_v1_baseline.ipynb           # Act 1 — the "before"
+├── nids_pipeline_v2.ipynb           # Act 3 — the "after" (Colab-ready source)
+├── mlsecops-agent/                  # Act 2 — the tool that produced the diff
 │   ├── src/mlsecops_agent/
-│   │   ├── cli.py                # `mlsecops check supply_chain <path>`
-│   │   ├── checks/supply_chain.py
+│   │   ├── cli.py                   # `audit`, `check`, `eval`
+│   │   ├── checks/                  # supply_chain, deserialization, secrets, leakage, adversarial
+│   │   ├── eval/                    # fixture-based P/R/F1 harness
+│   │   ├── reporting/               # Markdown report renderer
 │   │   └── models.py
 │   ├── tests/
-│   │   ├── checks/test_supply_chain.py
-│   │   └── fixtures/supply_chain/{positive,negative}_*.ipynb
+│   │   ├── checks/                  # per-check tests (10–41 each)
+│   │   ├── fixtures/                # positive + negative .ipynb per check
+│   │   ├── fixtures/EVAL_BASELINE.json
+│   │   ├── test_cli.py
+│   │   ├── test_eval.py
+│   │   └── test_reporting.py
+│   ├── docs/v1_audit_report.md      # full Markdown audit of v1
 │   ├── docs/v1_supply_chain_output.txt
 │   └── README.md
-└── README.md                     # you are here
+└── README.md                        # you are here
 ```
 
 ## License
@@ -109,4 +136,4 @@ MIT.
 
 ---
 
-*Built solo in Italy. Stack: Python 3.13 + uv + ruff + mypy --strict + pytest. Agent runtime: Claude Agent SDK. The portfolio is the diff between v1 and v2 — the agent is the tool that produced it.*
+*Built solo in Italy. Stack: Python 3.13 + uv + ruff + mypy --strict + pytest. Agent runtime: DeepSeek-V4 via OpenAI-compatible client (Claude Code is the dev assistant writing the project; DeepSeek is what the agent itself calls). The portfolio is the diff between v1 and v2 — the agent is the tool that produced it.*
