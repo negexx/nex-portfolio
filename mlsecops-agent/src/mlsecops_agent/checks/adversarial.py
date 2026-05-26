@@ -203,8 +203,7 @@ def _probe_model(model_path: Path) -> Finding | None:
             "An adversary can craft inputs that bypass this classifier with minimal perturbation."
         ),
         evidence=(
-            f"attack_success={pct}, eps={_FGSM_EPS}, "
-            f"n_probes={len(x_probe)}, n_flipped={n_flipped}"
+            f"attack_success={pct}, eps={_FGSM_EPS}, n_probes={len(x_probe)}, n_flipped={n_flipped}"
         ),
         fix=FixProposal(
             summary=(

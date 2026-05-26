@@ -31,12 +31,8 @@ LEAKAGE_PROXY_FIXTURE = FIXTURES / "leakage" / "positive_difficulty_proxy.ipynb"
 SUPPLY_CHAIN_FIXTURE = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
 
 
-def _assistant_msg(
-    content: str = "", tool_calls: list[ToolCall] | None = None
-) -> ChatResponse:
-    return ChatResponse(
-        message=AssistantMessage(content=content, tool_calls=tool_calls or [])
-    )
+def _assistant_msg(content: str = "", tool_calls: list[ToolCall] | None = None) -> ChatResponse:
+    return ChatResponse(message=AssistantMessage(content=content, tool_calls=tool_calls or []))
 
 
 def _seed_leakage_findings(state_target: Path) -> tuple[object, list[dict[str, object]]]:
@@ -56,9 +52,7 @@ def _seed_leakage_findings(state_target: Path) -> tuple[object, list[dict[str, o
     )
     payload = json.loads(result)
     assert payload["tool_status"] == "ok"
-    assert payload["findings"], (
-        "leakage fixture must produce at least one finding for these tests"
-    )
+    assert payload["findings"], "leakage fixture must produce at least one finding for these tests"
     return state, payload["findings"]
 
 
@@ -241,9 +235,7 @@ def test_agent_loop_without_judge_finding_leaves_findings_unchanged() -> None:
         ]
     )
 
-    transcript = run_audit_with_agent(
-        LEAKAGE_PROXY_FIXTURE, provider=provider, max_iterations=5
-    )
+    transcript = run_audit_with_agent(LEAKAGE_PROXY_FIXTURE, provider=provider, max_iterations=5)
 
     assert transcript.findings, "fixture must yield findings"
     for finding in transcript.findings:
@@ -265,9 +257,7 @@ def test_judge_finding_does_not_mutate_underlying_check_result(tmp_path: Path) -
     assert original.findings, "leakage fixture must yield at least one finding"
     pre_severities = [f.severity for f in original.findings]
     pre_evidences = [f.evidence for f in original.findings]
-    pre_fix_confs = [
-        f.fix.confidence if f.fix is not None else None for f in original.findings
-    ]
+    pre_fix_confs = [f.fix.confidence if f.fix is not None else None for f in original.findings]
 
     state, findings = _seed_leakage_findings(tmp_path)
     assert len(state.check_results) == 1

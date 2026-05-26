@@ -152,9 +152,7 @@ class LLMProvider:
         self._model_default = model_default or os.environ.get(
             "DEEPSEEK_MODEL_DEFAULT", DEFAULT_MODEL_DEFAULT
         )
-        self._model_hard = model_hard or os.environ.get(
-            "DEEPSEEK_MODEL_HARD", DEFAULT_MODEL_HARD
-        )
+        self._model_hard = model_hard or os.environ.get("DEEPSEEK_MODEL_HARD", DEFAULT_MODEL_HARD)
         self._tracer = tracer if tracer is not None else LangfuseTracer()
 
     def _model_for_tier(self, tier: Tier) -> str:
@@ -233,9 +231,7 @@ class LLMProvider:
                         messages=payload_messages,
                     )
             except Exception as exc:
-                raise LLMProviderError(
-                    f"upstream chat-completions call failed: {exc}"
-                ) from exc
+                raise LLMProviderError(f"upstream chat-completions call failed: {exc}") from exc
 
             response = self._normalize_completion(completion, model=model, tier=tier)
             self._tracer.update_generation(

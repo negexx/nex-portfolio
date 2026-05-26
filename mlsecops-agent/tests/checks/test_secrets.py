@@ -25,6 +25,7 @@ NIDS_V1 = Path(__file__).parent.parent.parent.parent / "nids_v1_baseline.ipynb"
 # Positive fixture — hardcoded secrets in source cells
 # ---------------------------------------------------------------------------
 
+
 def test_positive_fixture_flags_five_or_more_distinct_rules() -> None:
     result = secrets.run(FIXTURES / "positive_hardcoded_secrets.ipynb")
 
@@ -88,9 +89,7 @@ def test_positive_fixture_evidence_is_masked() -> None:
     assert result.findings, "Expected findings from positive fixture"
     for f in result.findings:
         # Evidence must contain '...' (our masking sentinel)
-        assert "..." in f.evidence, (
-            f"Evidence for {f.id} does not appear masked: {f.evidence!r}"
-        )
+        assert "..." in f.evidence, f"Evidence for {f.id} does not appear masked: {f.evidence!r}"
 
 
 def test_positive_fixture_findings_have_required_fields() -> None:
@@ -107,19 +106,20 @@ def test_positive_fixture_findings_have_required_fields() -> None:
 # Negative fixture — safe secret handling
 # ---------------------------------------------------------------------------
 
+
 def test_negative_fixture_is_clean() -> None:
     result = secrets.run(FIXTURES / "negative_safe_secret_handling.ipynb")
 
     assert result.tool_status == "ok"
-    assert result.findings == [], (
-        "negative fixture should not produce findings; got: "
-        + ", ".join(f.id for f in result.findings)
+    assert result.findings == [], "negative fixture should not produce findings; got: " + ", ".join(
+        f.id for f in result.findings
     )
 
 
 # ---------------------------------------------------------------------------
 # Output-leak fixture — secret in cell output → leaked-in-notebook-output
 # ---------------------------------------------------------------------------
+
 
 def test_output_leak_fixture_produces_leaked_in_output_finding() -> None:
     result = secrets.run(FIXTURES / "positive_leaked_in_output.ipynb")
@@ -154,17 +154,21 @@ def test_output_leak_evidence_is_masked() -> None:
 # Parametrized pattern detection
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "suffix, sample",
+    # Defanged via string concatenation so GitHub's secret-scanner doesn't flag
+    # these as committed secrets. Python evaluates each to a single contiguous
+    # string at test time; the source bytes contain no scanner-matchable pattern.
     [
-        ("openai-api-key", "sk-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
-        ("openai-api-key", "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
-        ("anthropic-api-key", "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"),
-        ("aws-access-key", "AKIAIOSFODNN7EXAMPLE"),
-        ("huggingface-token", "hf_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
-        ("github-token", "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"),
-        ("github-token", "github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"),
-        ("slack-token", "xoxb-123456789012-ABCDEFGHIJKLMN"),
+        ("openai-api-key", "sk" + "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
+        ("openai-api-key", "sk-proj" + "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
+        ("anthropic-api-key", "sk-ant" + "-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"),
+        ("aws-access-key", "AKIA" + "IOSFODNN7EXAMPLE"),
+        ("huggingface-token", "hf" + "_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"),
+        ("github-token", "ghp" + "_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"),
+        ("github-token", "github_pat" + "_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"),
+        ("slack-token", "xox" + "b-123456789012-ABCDEFGHIJKLMN"),
         ("private-key-block", "-----BEGIN RSA PRIVATE KEY-----"),
         ("private-key-block", "-----BEGIN OPENSSH PRIVATE KEY-----"),
         ("private-key-block", "-----BEGIN PRIVATE KEY-----"),
@@ -203,6 +207,7 @@ def test_url_without_password_not_flagged_in_py_file(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Inline construction tests (tmp_path)
 # ---------------------------------------------------------------------------
+
 
 def test_py_file_with_aws_key_is_flagged(tmp_path: Path) -> None:
     py = tmp_path / "train.py"
@@ -262,6 +267,7 @@ def test_full_secret_not_in_any_evidence(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # v1 integration smoke test
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(
     not NIDS_V1.exists(),

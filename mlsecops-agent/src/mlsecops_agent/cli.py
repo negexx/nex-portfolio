@@ -42,6 +42,7 @@ def set_llm_provider_override(provider: LLMProvider | MockLLMProvider | None) ->
     global _LLM_PROVIDER_OVERRIDE
     _LLM_PROVIDER_OVERRIDE = provider
 
+
 app = typer.Typer(
     name="mlsecops",
     help="Audit ML codebases for hygiene and security issues.",
@@ -153,13 +154,9 @@ def _resolve_checks(filters: list[str]) -> list[CheckName]:
         try:
             check_name = CheckName(name)
         except ValueError as exc:
-            raise typer.BadParameter(
-                f"unknown check '{name}'. Valid: {valid}"
-            ) from exc
+            raise typer.BadParameter(f"unknown check '{name}'. Valid: {valid}") from exc
         if check_name not in CHECKS:
-            raise typer.BadParameter(
-                f"check '{name}' is declared but not yet implemented."
-            )
+            raise typer.BadParameter(f"check '{name}' is declared but not yet implemented.")
         if check_name not in selected:
             selected.append(check_name)
     return selected
@@ -259,11 +256,7 @@ def audit(
         run_id = repo.record_run(target=str(target), results=results, invocation="cli")
         _console.print(f"[dim]Persisted run[/dim] [bold]{run_id}[/bold] [dim]to[/dim] {persist}")
 
-    if any(
-        f.severity in (Severity.HIGH, Severity.CRITICAL)
-        for r in results
-        for f in r.findings
-    ):
+    if any(f.severity in (Severity.HIGH, Severity.CRITICAL) for r in results for f in r.findings):
         raise typer.Exit(code=1)
 
 
@@ -449,9 +442,7 @@ def _run_audit_with_llm(
         )
         _console.print(f"[dim]Persisted run[/dim] [bold]{run_id}[/bold] [dim]to[/dim] {persist}")
 
-    if any(
-        f.severity in (Severity.HIGH, Severity.CRITICAL) for f in transcript.findings
-    ):
+    if any(f.severity in (Severity.HIGH, Severity.CRITICAL) for f in transcript.findings):
         raise typer.Exit(code=1)
 
 
@@ -466,9 +457,7 @@ def check(name: str, path: str) -> None:
 
     runner = CHECKS.get(check_name)
     if runner is None:
-        raise typer.BadParameter(
-            f"check '{name}' is declared but not yet implemented in v0.1."
-        )
+        raise typer.BadParameter(f"check '{name}' is declared but not yet implemented in v0.1.")
 
     target = Path(path)
     if not target.exists():
@@ -562,9 +551,7 @@ def eval_cmd(
     failing = [r for r in report.rows if r.recall < min_recall]
     if failing:
         names = ", ".join(r.check.value for r in failing)
-        _console.print(
-            f"\n[red]Recall below {min_recall} for: {names}[/red]"
-        )
+        _console.print(f"\n[red]Recall below {min_recall} for: {names}[/red]")
         raise typer.Exit(code=1)
 
 

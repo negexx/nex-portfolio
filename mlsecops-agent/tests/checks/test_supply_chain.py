@@ -55,15 +55,12 @@ def test_negative_fixture_is_clean() -> None:
     result = supply_chain.run(FIXTURES / "negative_pinned_pip.ipynb")
 
     assert result.tool_status == "ok"
-    assert result.findings == [], (
-        "negative fixture should not produce findings; got: "
-        + ", ".join(f.id for f in result.findings)
+    assert result.findings == [], "negative fixture should not produce findings; got: " + ", ".join(
+        f.id for f in result.findings
     )
 
 
-def test_requirements_txt_unpinned(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_requirements_txt_unpinned(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _disable_cve(monkeypatch)
     req = tmp_path / "requirements.txt"
     req.write_text(
@@ -132,9 +129,7 @@ def _canned_pip_audit_response() -> str:
     )
 
 
-def test_pip_audit_parses_canned_response(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_pip_audit_parses_canned_response(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             args=list(args),

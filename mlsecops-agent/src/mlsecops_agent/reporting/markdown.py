@@ -146,9 +146,7 @@ def render_markdown(
     when = generated_at or datetime.now(UTC)
     total = sum(len(r.findings) for r in results)
     has_blocker = any(
-        f.severity in (Severity.HIGH, Severity.CRITICAL)
-        for r in results
-        for f in r.findings
+        f.severity in (Severity.HIGH, Severity.CRITICAL) for r in results for f in r.findings
     )
 
     parts: list[str] = [

@@ -79,9 +79,7 @@ def test_positive_fit_on_test_semgrep_fixture(monkeypatch: pytest.MonkeyPatch) -
     )
 
     def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            args=list(args), returncode=1, stdout=payload, stderr=""
-        )
+        return subprocess.CompletedProcess(args=list(args), returncode=1, stdout=payload, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
@@ -119,9 +117,7 @@ def test_positive_shuffle_false_fixture(monkeypatch: pytest.MonkeyPatch) -> None
     )
 
     def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            args=list(args), returncode=1, stdout=payload, stderr=""
-        )
+        return subprocess.CompletedProcess(args=list(args), returncode=1, stdout=payload, stderr="")
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
@@ -179,9 +175,7 @@ def test_semgrep_binary_missing_returns_empty(monkeypatch: pytest.MonkeyPatch) -
 
 def test_semgrep_oserror_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """OSError from subprocess (binary gone mid-run) must return [] without raising."""
-    monkeypatch.setattr(
-        semgrep_rules, "_semgrep_binary", lambda: "/usr/local/bin/semgrep"
-    )
+    monkeypatch.setattr(semgrep_rules, "_semgrep_binary", lambda: "/usr/local/bin/semgrep")
 
     def _raise(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         raise OSError("No such file or directory")

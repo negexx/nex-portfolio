@@ -162,6 +162,7 @@ _LABEL_PROXY_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^cheat_.+", re.IGNORECASE),
 ]
 
+
 def _is_label_proxy(name: str) -> bool:
     """Return True when *name* matches any label-proxy pattern."""
     return any(pat.match(name) for pat in _LABEL_PROXY_PATTERNS)
@@ -174,9 +175,7 @@ def _is_label_proxy(name: str) -> bool:
 # Qualified-name suffixes that indicate a fit / resample call we care about.
 # We match against the *attribute name* directly (not full qualified names) because
 # QualifiedNameProvider can't resolve arbitrary user-defined objects (e.g. `smote`).
-_FIT_ATTRS: frozenset[str] = frozenset(
-    {"fit", "fit_transform", "fit_resample"}
-)
+_FIT_ATTRS: frozenset[str] = frozenset({"fit", "fit_transform", "fit_resample"})
 
 # train_test_split call detection — attribute OR bare name.
 _SPLIT_NAMES: frozenset[str] = frozenset({"train_test_split"})
@@ -347,26 +346,26 @@ class _LeakageVisitor(cst.CSTVisitor):
             and _TEST_ARG_RE.match(first)
         ):
             self.raw_findings.append(
-                    _RawFinding(
-                        rule_id="leakage.fit-on-test",
-                        severity=Severity.CRITICAL,
-                        category="data-leakage",
-                        line_start=pos.start.line,
-                        line_end=pos.end.line,
-                        evidence=evidence,
-                        message=(
-                            f"`{attr}({first}, ...)` fits the transformer on the test set. "
-                            "Any statistics computed here (mean, variance, …) are contaminated "
-                            "by test-set information and will produce optimistically biased "
-                            "evaluation metrics."
-                        ),
-                        fix_summary=(
-                            f"Replace `{attr}({first})` with `transform({first})`. "
-                            "Only `fit` / `fit_transform` on the training split; apply "
-                            "`transform` to validation and test splits."
-                        ),
-                    )
+                _RawFinding(
+                    rule_id="leakage.fit-on-test",
+                    severity=Severity.CRITICAL,
+                    category="data-leakage",
+                    line_start=pos.start.line,
+                    line_end=pos.end.line,
+                    evidence=evidence,
+                    message=(
+                        f"`{attr}({first}, ...)` fits the transformer on the test set. "
+                        "Any statistics computed here (mean, variance, …) are contaminated "
+                        "by test-set information and will produce optimistically biased "
+                        "evaluation metrics."
+                    ),
+                    fix_summary=(
+                        f"Replace `{attr}({first})` with `transform({first})`. "
+                        "Only `fit` / `fit_transform` on the training split; apply "
+                        "`transform` to validation and test splits."
+                    ),
                 )
+            )
 
     # ------------------------------------------------------------------
     # Assignment visitors — rule 3 (label-proxy features)

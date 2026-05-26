@@ -37,7 +37,17 @@ if TYPE_CHECKING:
 # reference (git+, http, file://, local path). We're permissive — we only want
 # to flag the obvious "give me the latest of whatever" case.
 _PINNED_PATTERNS = (
-    "==", "===", "~=", ">=", "<=", ">", "<", "@", "git+", "http://", "https://",
+    "==",
+    "===",
+    "~=",
+    ">=",
+    "<=",
+    ">",
+    "<",
+    "@",
+    "git+",
+    "http://",
+    "https://",
 )
 
 # Strip leading shell flags so `-q my-pkg` is parsed as just `my-pkg`.
@@ -235,10 +245,15 @@ def _scan_requirements_for_cves(path: Path) -> list[Finding]:
         cmd = [binary, "--requirement", str(path), "--format", "json", "--progress-spinner", "off"]
     else:
         cmd = [
-            "python", "-m", "pip_audit",
-            "--requirement", str(path),
-            "--format", "json",
-            "--progress-spinner", "off",
+            "python",
+            "-m",
+            "pip_audit",
+            "--requirement",
+            str(path),
+            "--format",
+            "json",
+            "--progress-spinner",
+            "off",
         ]
 
     try:
@@ -273,9 +288,7 @@ def _scan_requirements_for_cves(path: Path) -> list[Finding]:
                 continue
             vid = vuln.get("id", "UNKNOWN")
             fix_versions = vuln.get("fix_versions", []) or []
-            description = (vuln.get("description") or "").strip() or (
-                "see advisory for details."
-            )
+            description = (vuln.get("description") or "").strip() or ("see advisory for details.")
             findings.append(
                 Finding(
                     id="supply_chain.known-cve",
@@ -285,10 +298,7 @@ def _scan_requirements_for_cves(path: Path) -> list[Finding]:
                     file=path,
                     line_start=None,
                     line_end=None,
-                    message=(
-                        f"`{name}=={version}` is affected by {vid}: "
-                        f"{description[:200]}"
-                    ),
+                    message=(f"`{name}=={version}` is affected by {vid}: {description[:200]}"),
                     evidence=f"{name}=={version} -> {vid}",
                     fix=FixProposal(
                         summary=(

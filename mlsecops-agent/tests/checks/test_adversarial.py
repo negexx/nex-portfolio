@@ -62,9 +62,7 @@ def tiny_keras_model_h5(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # Fit briefly so weights are non-trivial and some probes clear 0.7 confidence.
     rng = np.random.default_rng(seed=0)
     x_train = rng.random((200, 10), dtype=np.float32)
-    y_train = tf.keras.utils.to_categorical(
-        rng.integers(0, 3, size=200), num_classes=3
-    )
+    y_train = tf.keras.utils.to_categorical(rng.integers(0, 3, size=200), num_classes=3)
     model.fit(x_train, y_train, epochs=5, verbose=0)
 
     model_dir = tmp_path_factory.mktemp("adversarial_models")

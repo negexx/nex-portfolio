@@ -38,9 +38,7 @@ SUPPLY_CHAIN_FIXTURE = FIXTURES / "supply_chain" / "positive_unpinned_pip.ipynb"
 
 
 def _assistant_msg(content: str = "", tool_calls: list[ToolCall] | None = None) -> ChatResponse:
-    return ChatResponse(
-        message=AssistantMessage(content=content, tool_calls=tool_calls or [])
-    )
+    return ChatResponse(message=AssistantMessage(content=content, tool_calls=tool_calls or []))
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +81,7 @@ def test_loop_stops_at_max_iterations_when_assistant_keeps_calling_tools(
 
 def test_list_checks_returns_every_registered_check(tmp_path: Path) -> None:
     state = _new_state_for_test(tmp_path)
-    result = _dispatch_for_test(
-        state, ToolCall(id="x", name="list_checks", arguments={})
-    )
+    result = _dispatch_for_test(state, ToolCall(id="x", name="list_checks", arguments={}))
 
     payload = json.loads(result)
     names = {c["name"] for c in payload["checks"]}
@@ -164,9 +160,7 @@ def test_propose_fix_unknown_finding_returns_error(tmp_path: Path) -> None:
 
 def test_unknown_tool_returns_structured_error(tmp_path: Path) -> None:
     state = _new_state_for_test(tmp_path)
-    result = _dispatch_for_test(
-        state, ToolCall(id="x", name="hallucinated_tool", arguments={})
-    )
+    result = _dispatch_for_test(state, ToolCall(id="x", name="hallucinated_tool", arguments={}))
     payload = json.loads(result)
     assert payload["error"] == "unknown_tool"
 
@@ -234,9 +228,7 @@ def test_full_loop_runs_check_then_summarises() -> None:
         ]
     )
 
-    transcript = run_audit_with_agent(
-        SUPPLY_CHAIN_FIXTURE, provider=provider, max_iterations=5
-    )
+    transcript = run_audit_with_agent(SUPPLY_CHAIN_FIXTURE, provider=provider, max_iterations=5)
 
     assert transcript.hit_iteration_cap is False
     assert transcript.iterations == 2
@@ -268,9 +260,7 @@ def test_full_loop_propose_fix_records_against_finding() -> None:
         ]
     )
 
-    transcript = run_audit_with_agent(
-        SUPPLY_CHAIN_FIXTURE, provider=provider, max_iterations=5
-    )
+    transcript = run_audit_with_agent(SUPPLY_CHAIN_FIXTURE, provider=provider, max_iterations=5)
 
     assert len(transcript.fix_proposals) == 1
     assert transcript.fix_proposals[0].finding_id_in_run == 0

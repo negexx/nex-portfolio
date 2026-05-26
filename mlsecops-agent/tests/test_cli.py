@@ -124,9 +124,7 @@ def test_audit_with_llm_errors_without_api_key(tmp_path: Path) -> None:
     """Without an override and without DEEPSEEK_API_KEY, the command should
     exit 1 with a pointer to .env.example."""
     set_llm_provider_override(None)
-    no_key_runner = CliRunner(
-        env={"COLUMNS": "200", "TERM": "dumb", "DEEPSEEK_API_KEY": ""}
-    )
+    no_key_runner = CliRunner(env={"COLUMNS": "200", "TERM": "dumb", "DEEPSEEK_API_KEY": ""})
     result = no_key_runner.invoke(app, ["audit", str(tmp_path), "--with-llm"])
     assert result.exit_code == 1
     assert "deepseek_api_key" in result.output.lower()
@@ -146,6 +144,7 @@ def test_audit_persist_writes_db_and_history_list_reads_it(tmp_path: Path) -> No
     # Rich truncates long Windows paths; assert the 12-char run_id prefix is present
     # (the run we just persisted) — that confirms the row rendered.
     import re
+
     assert re.search(r"\b[0-9a-f]{12}\b", list_result.output) is not None
 
 
@@ -210,9 +209,7 @@ def test_audit_with_llm_persists_run(tmp_path: Path) -> None:
     )
     set_llm_provider_override(provider)
     try:
-        result = runner.invoke(
-            app, ["audit", str(target), "--with-llm", "--persist", str(db)]
-        )
+        result = runner.invoke(app, ["audit", str(target), "--with-llm", "--persist", str(db)])
     finally:
         set_llm_provider_override(None)
 

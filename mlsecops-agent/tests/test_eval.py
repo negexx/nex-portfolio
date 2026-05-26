@@ -16,9 +16,7 @@ def test_committed_baseline_passes() -> None:
     """The checked-in baseline should match the current check output exactly."""
     report = run_eval(REPO_FIXTURES, REPO_BASELINE)
     for row in report.rows:
-        assert row.false_negatives == 0, (
-            f"{row.check.value} regressed — missing expected findings"
-        )
+        assert row.false_negatives == 0, f"{row.check.value} regressed — missing expected findings"
         assert row.false_positives == 0, (
             f"{row.check.value} produced unexpected new findings — "
             "if intentional, rerun mlsecops eval --update-baseline"

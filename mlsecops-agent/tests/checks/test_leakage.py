@@ -48,9 +48,7 @@ def test_difficulty_proxy_flagged() -> None:
     result = leakage.run(FIXTURES / "positive_difficulty_proxy.ipynb")
 
     ids = [f.id for f in result.findings]
-    assert "leakage.label-proxy-feature" in ids, (
-        f"Expected label-proxy-feature; got: {ids}"
-    )
+    assert "leakage.label-proxy-feature" in ids, f"Expected label-proxy-feature; got: {ids}"
 
 
 def test_fit_on_test_flagged() -> None:
@@ -58,9 +56,7 @@ def test_fit_on_test_flagged() -> None:
     result = leakage.run(FIXTURES / "positive_fit_on_test.py")
 
     ids = [f.id for f in result.findings]
-    assert "leakage.fit-on-test" in ids, (
-        f"Expected fit-on-test; got: {ids}"
-    )
+    assert "leakage.fit-on-test" in ids, f"Expected fit-on-test; got: {ids}"
 
 
 def test_positive_findings_have_required_fields() -> None:
@@ -125,8 +121,7 @@ def test_negative_correct_pipeline_is_clean() -> None:
     # Only flag if leakage rules actually fire (not supply-chain or other checks).
     leakage_ids = [f.id for f in result.findings if f.id.startswith("leakage.")]
     assert leakage_ids == [], (
-        "negative fixture must produce no leakage findings; got: "
-        + ", ".join(leakage_ids)
+        "negative fixture must produce no leakage findings; got: " + ", ".join(leakage_ids)
     )
 
 
@@ -162,13 +157,15 @@ def test_cross_cell_positive_smote_before_split(tmp_path: Path) -> None:
     """SMOTE fit_resample in cell 0, train_test_split in cell 1 → flagged."""
     nb = tmp_path / "positive_cross.ipynb"
     nb.write_bytes(
-        _make_nb([
-            "from imblearn.over_sampling import SMOTE\n"
-            "smote = SMOTE(random_state=42)\n"
-            "X_res, y_res = smote.fit_resample(X, y)\n",
-            "from sklearn.model_selection import train_test_split\n"
-            "X_train, X_test, y_train, y_test = train_test_split(X_res, y_res)\n",
-        ])
+        _make_nb(
+            [
+                "from imblearn.over_sampling import SMOTE\n"
+                "smote = SMOTE(random_state=42)\n"
+                "X_res, y_res = smote.fit_resample(X, y)\n",
+                "from sklearn.model_selection import train_test_split\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X_res, y_res)\n",
+            ]
+        )
     )
     result = leakage.run(nb)
     ids = [f.id for f in result.findings]
@@ -179,13 +176,15 @@ def test_cross_cell_negative_split_before_smote(tmp_path: Path) -> None:
     """train_test_split in cell 0, SMOTE in cell 1 → no preprocessing-before-split."""
     nb = tmp_path / "negative_cross.ipynb"
     nb.write_bytes(
-        _make_nb([
-            "from sklearn.model_selection import train_test_split\n"
-            "X_train, X_test, y_train, y_test = train_test_split(X, y)\n",
-            "from imblearn.over_sampling import SMOTE\n"
-            "smote = SMOTE(random_state=42)\n"
-            "X_res, y_res = smote.fit_resample(X_train, y_train)\n",
-        ])
+        _make_nb(
+            [
+                "from sklearn.model_selection import train_test_split\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X, y)\n",
+                "from imblearn.over_sampling import SMOTE\n"
+                "smote = SMOTE(random_state=42)\n"
+                "X_res, y_res = smote.fit_resample(X_train, y_train)\n",
+            ]
+        )
     )
     result = leakage.run(nb)
     ids = [f.id for f in result.findings]
@@ -345,9 +344,7 @@ def test_safe_column_names_are_not_flagged(col_name: str, tmp_path: Path) -> Non
     )
     result = leakage.run(py)
     proxy_findings = [f for f in result.findings if f.id == "leakage.label-proxy-feature"]
-    assert proxy_findings == [], (
-        f"Column '{col_name}' falsely flagged as label proxy"
-    )
+    assert proxy_findings == [], f"Column '{col_name}' falsely flagged as label proxy"
 
 
 def test_is_label_proxy_function_directly() -> None:
@@ -420,9 +417,7 @@ def test_nids_v1_fires_label_proxy_for_difficulty_level() -> None:
     result = leakage.run(NIDS_V1)
 
     proxy_findings = [f for f in result.findings if f.id == "leakage.label-proxy-feature"]
-    difficulty_findings = [
-        f for f in proxy_findings if "difficulty_level" in f.message
-    ]
+    difficulty_findings = [f for f in proxy_findings if "difficulty_level" in f.message]
     assert difficulty_findings, (
         "Expected at least one label-proxy-feature finding mentioning difficulty_level. "
         f"All proxy findings: {[f.message for f in proxy_findings]}"

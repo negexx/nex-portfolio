@@ -88,7 +88,8 @@ def run_semgrep(target: Path) -> list[Finding]:
     cmd = [
         binary,
         "scan",
-        "--config", str(_RULES_PATH),
+        "--config",
+        str(_RULES_PATH),
         "--json",
         "--metrics=off",
         "--disable-version-check",

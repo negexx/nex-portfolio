@@ -238,9 +238,7 @@ class Repository:
 
     def get_run(self, run_id: str) -> dict[str, object] | None:
         with _connect(self._db_path) as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE run_id = ?", (run_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
             return dict(row) if row else None
 
     def findings_for_run(self, run_id: str) -> list[Finding]:

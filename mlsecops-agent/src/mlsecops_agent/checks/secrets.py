@@ -120,6 +120,7 @@ def _line_of(text: str, match_start: int) -> int:
 # Source scanning (code cells + .py files)
 # ---------------------------------------------------------------------------
 
+
 def _scan_text_for_secrets(
     text: str,
     path: Path,
@@ -163,7 +164,7 @@ def _scan_text_for_secrets(
                     "and rotate it immediately."
                 )
                 fix_summary = (
-                    "Replace the literal with `os.getenv(\"<VAR_NAME>\")`. "
+                    'Replace the literal with `os.getenv("<VAR_NAME>")`. '
                     "Rotate the exposed credential — assume it is compromised. "
                     "Add a pre-commit hook (e.g. `detect-secrets`) to prevent recurrence."
                 )
@@ -191,6 +192,7 @@ def _scan_text_for_secrets(
 # ---------------------------------------------------------------------------
 # Notebook parsing helpers
 # ---------------------------------------------------------------------------
+
 
 def _iter_notebook_cells(
     data: dict[str, object],
@@ -254,15 +256,11 @@ def _scan_notebook(path: Path) -> list[Finding]:
     for source, outputs in _iter_notebook_cells(data):
         # Source-code pass
         if source:
-            findings.extend(
-                _scan_text_for_secrets(source, path, in_output=False)
-            )
+            findings.extend(_scan_text_for_secrets(source, path, in_output=False))
         # Output pass (same patterns, escalated severity, different rule id)
         for out_text in _extract_output_texts(outputs):
             if out_text:
-                findings.extend(
-                    _scan_text_for_secrets(out_text, path, in_output=True)
-                )
+                findings.extend(_scan_text_for_secrets(out_text, path, in_output=True))
 
     return findings
 
@@ -275,6 +273,7 @@ def _scan_py(path: Path) -> list[Finding]:
 # ---------------------------------------------------------------------------
 # Target iterator + public entry point
 # ---------------------------------------------------------------------------
+
 
 def _iter_targets(path: Path) -> Iterable[Path]:
     """Yield ``.py`` and ``.ipynb`` files under *path* (or *path* itself)."""

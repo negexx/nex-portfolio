@@ -66,9 +66,8 @@ def test_negative_fixture_is_clean() -> None:
     result = deserialization.run(FIXTURES / "negative_safe_loads.ipynb")
 
     assert result.tool_status == "ok"
-    assert result.findings == [], (
-        "negative fixture must produce no findings; got: "
-        + ", ".join(f.id for f in result.findings)
+    assert result.findings == [], "negative fixture must produce no findings; got: " + ", ".join(
+        f.id for f in result.findings
     )
 
 
@@ -95,8 +94,7 @@ def test_from_import_torch_is_flagged(tmp_path: Path) -> None:
     """
     py = tmp_path / "from_import.py"
     py.write_text(
-        "from torch import load\n"
-        "checkpoint = load('model.pt')\n",
+        "from torch import load\ncheckpoint = load('model.pt')\n",
         encoding="utf-8",
     )
     result = deserialization.run(py)
@@ -107,14 +105,13 @@ def test_from_import_torch_is_flagged(tmp_path: Path) -> None:
 def test_torch_load_with_weights_only_true_is_not_flagged(tmp_path: Path) -> None:
     py = tmp_path / "safe_torch.py"
     py.write_text(
-        "import torch\n"
-        "checkpoint = torch.load('model.pt', weights_only=True)\n",
+        "import torch\ncheckpoint = torch.load('model.pt', weights_only=True)\n",
         encoding="utf-8",
     )
     result = deserialization.run(py)
-    assert not any(
-        f.id == "deserialization.unsafe-torch-load" for f in result.findings
-    ), "torch.load(weights_only=True) must not be flagged"
+    assert not any(f.id == "deserialization.unsafe-torch-load" for f in result.findings), (
+        "torch.load(weights_only=True) must not be flagged"
+    )
 
 
 def test_numpy_load_without_allow_pickle_is_not_flagged(tmp_path: Path) -> None:
@@ -126,9 +123,9 @@ def test_numpy_load_without_allow_pickle_is_not_flagged(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     result = deserialization.run(py)
-    assert not any(
-        f.id == "deserialization.unsafe-numpy-load" for f in result.findings
-    ), "numpy.load without allow_pickle=True must not be flagged"
+    assert not any(f.id == "deserialization.unsafe-numpy-load" for f in result.findings), (
+        "numpy.load without allow_pickle=True must not be flagged"
+    )
 
 
 def test_empty_directory_produces_no_findings(tmp_path: Path) -> None:
@@ -141,9 +138,7 @@ def test_pure_python_file(tmp_path: Path) -> None:
     """Check that .py files are scanned in addition to notebooks."""
     py = tmp_path / "train.py"
     py.write_text(
-        "import pickle\n"
-        "with open('model.pkl', 'rb') as f:\n"
-        "    clf = pickle.load(f)\n",
+        "import pickle\nwith open('model.pkl', 'rb') as f:\n    clf = pickle.load(f)\n",
         encoding="utf-8",
     )
     result = deserialization.run(py)
@@ -159,9 +154,7 @@ def test_nids_v1_joblib_load_findings() -> None:
     """The real v1 NIDS notebook contains exactly 4 ``joblib.load`` calls."""
     result = deserialization.run(NIDS_V1)
 
-    joblib_findings = [
-        f for f in result.findings if f.id == "deserialization.unsafe-joblib-load"
-    ]
+    joblib_findings = [f for f in result.findings if f.id == "deserialization.unsafe-joblib-load"]
     assert len(joblib_findings) >= 4, (
         f"Expected >= 4 unsafe-joblib-load findings in nids_v1_baseline.ipynb, "
         f"got {len(joblib_findings)}"

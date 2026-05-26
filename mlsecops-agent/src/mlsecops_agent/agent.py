@@ -228,8 +228,7 @@ def _tool_definitions() -> list[ToolDefinition]:
                     "check": {
                         "type": "string",
                         "description": (
-                            "Check name. One of: "
-                            + ", ".join(c.value for c in CheckName)
+                            "Check name. One of: " + ", ".join(c.value for c in CheckName)
                         ),
                     },
                     "target": {
@@ -363,8 +362,7 @@ def _serialize_tool_result(payload: BaseModel | ToolErrorPayload) -> str:
 
 def _handle_list_checks(_state: _AuditState, _raw_args: dict[str, object]) -> str:
     summaries = [
-        CheckSummary(name=check.value, description=_CHECK_DESCRIPTIONS[check])
-        for check in CHECKS
+        CheckSummary(name=check.value, description=_CHECK_DESCRIPTIONS[check]) for check in CHECKS
     ]
     payload = {"checks": [s.model_dump() for s in summaries]}
     return json.dumps(payload)
@@ -637,10 +635,7 @@ def run_audit_with_agent(
         ChatMessage(role="system", content=system_prompt),
         ChatMessage(
             role="user",
-            content=(
-                f"Audit `{target}`. Use the available tools. "
-                "End with an executive summary."
-            ),
+            content=(f"Audit `{target}`. Use the available tools. End with an executive summary."),
         ),
     ]
 
@@ -709,6 +704,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Internal helpers re-exported for test access
 # ---------------------------------------------------------------------------
+
 
 # Tests import these to assert dispatcher behaviour without going through a
 # fake LLM.  They are not part of the public API.
