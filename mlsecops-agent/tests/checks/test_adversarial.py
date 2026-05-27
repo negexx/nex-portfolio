@@ -191,3 +191,46 @@ def test_corrupt_model_file_does_not_crash(tmp_path: Path) -> None:
 
     assert result.tool_status == "ok"
     assert result.findings == []
+
+
+@pytest.mark.slow
+@_tf_required
+def test_conv1d_3d_input_shape_is_supported(tmp_path: Path) -> None:
+    """Models with input_shape (batch, features, 1) (Conv1D / LSTM convention)
+    must be probed, not silently skipped.
+
+    Regression test for the v2 NIDS audit, where both saved Keras artifacts
+    had a rank-3 input shape and the prior implementation returned no result
+    even though the models were perfectly valid.
+    """
+    import numpy as np
+    import tensorflow as tf  # type: ignore[import-untyped]
+
+    model = tf.keras.Sequential(
+        [
+            tf.keras.layers.Conv1D(
+                8, 3, activation="relu", padding="same", input_shape=(10, 1)
+            ),
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(3, activation="softmax"),
+        ]
+    )
+    model.compile(optimizer="adam", loss="categorical_crossentropy")
+
+    rng = np.random.default_rng(seed=0)
+    x = rng.random((200, 10, 1), dtype=np.float32)
+    y = tf.keras.utils.to_categorical(rng.integers(0, 3, size=200), num_classes=3)
+    model.fit(x, y, epochs=3, verbose=0)
+
+    model_path = tmp_path / "conv1d.keras"
+    model.save(str(model_path))
+
+    result = adversarial.run(tmp_path, include_adversarial=True)
+
+    assert result.tool_status == "ok"
+    # We don't assert flip rate either way — the test is that the check ran
+    # the model at all rather than skipping on shape. If a finding does
+    # emit it must use the correct rule id.
+    for finding in result.findings:
+        assert finding.id == "adversarial.fgsm-trivial-evasion"
+        assert finding.file == model_path

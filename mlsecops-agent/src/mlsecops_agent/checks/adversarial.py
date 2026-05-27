@@ -66,15 +66,26 @@ _EVASION_THRESHOLD: float = 0.50  # flag when attack success > 50 %
 # ---------------------------------------------------------------------------
 
 
+_SKIP_PARTS = frozenset({".venv", "venv", "__pycache__", "site-packages", ".git", "node_modules"})
+
+
 def _find_model_files(target: Path) -> list[Path]:
-    """Return ``.h5`` and ``.keras`` files under *target* (or *target* itself)."""
+    """Return ``.h5`` and ``.keras`` files under *target* (or *target* itself).
+
+    Skips files inside virtualenvs and other dependency directories — picking up
+    `h5py`'s test fixtures from `site-packages/h5py/tests/data_files/*.h5` would
+    produce useless ``load-failed`` warnings on every audit.
+    """
     if target.is_file():
         if target.suffix in {".h5", ".keras"}:
             return [target]
         return []
     found: list[Path] = []
     for pattern in ("**/*.h5", "**/*.keras"):
-        found.extend(target.glob(pattern))
+        for path in target.glob(pattern):
+            if any(part in _SKIP_PARTS for part in path.parts):
+                continue
+            found.append(path)
     return sorted(found)
 
 
@@ -102,8 +113,11 @@ def _probe_model(model_path: Path) -> Finding | None:
         _log.warning("adversarial.input-shape-failed", model=str(model_path), error=str(exc))
         return None
 
-    # We only support 2-D inputs (batch, features); skip higher-rank models.
-    if not isinstance(input_shape, tuple) or len(input_shape) != 2:
+    # Supported shapes:
+    #  - (batch, features)           — dense networks
+    #  - (batch, features, 1)        — Conv1D / LSTM with single-channel features,
+    #                                  the standard NSL-KDD / tabular-sequence layout.
+    if not isinstance(input_shape, tuple):
         _log.info(
             "adversarial.unsupported-input-shape",
             model=str(model_path),
@@ -111,12 +125,28 @@ def _probe_model(model_path: Path) -> Finding | None:
         )
         return None
 
-    n_features: int = int(input_shape[1])
+    rank = len(input_shape)
+    if rank == 2:
+        n_features = int(input_shape[1])
+        probe_shape: tuple[int, ...] = (_N_PROBES, n_features)
+        art_input_shape: tuple[int, ...] = (n_features,)
+    elif rank == 3 and input_shape[-1] == 1:
+        n_features = int(input_shape[1])
+        probe_shape = (_N_PROBES, n_features, 1)
+        art_input_shape = (n_features, 1)
+    else:
+        _log.info(
+            "adversarial.unsupported-input-shape",
+            model=str(model_path),
+            shape=str(input_shape),
+        )
+        return None
+
     n_classes: int = int(model.output_shape[-1])
 
     # Synthesise probe inputs: uniform random in [0, 1].
     rng = np.random.default_rng(seed=42)
-    x_raw: np.ndarray = rng.random((_N_PROBES, n_features), dtype=np.float32)
+    x_raw: np.ndarray = rng.random(probe_shape, dtype=np.float32)
 
     # Score probes; keep only the ones the model is confident about.
     try:
@@ -140,10 +170,11 @@ def _probe_model(model_path: Path) -> Finding | None:
 
     # Wrap the Keras model with ART's KerasClassifier.
     try:
+        # ART >= 1.20 dropped nb_classes / input_shape — both are inferred from
+        # the model.  Keep clip_values to constrain perturbations to [0, 1].
+        del n_classes, art_input_shape  # explicitly unused after the rank check
         classifier = KerasClassifier(
             model=model,
-            nb_classes=n_classes,
-            input_shape=(n_features,),
             clip_values=(0.0, 1.0),
         )
     except Exception as exc:
