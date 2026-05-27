@@ -27,6 +27,13 @@
       "Bash(git stash *)",
       "Bash(gh pr *)",
       "Bash(gh issue *)",
+      "Bash(gh run *)",
+      "Bash(gh repo view *)",
+      "Bash(gh repo edit *)",
+      "Bash(tasklist *)",
+      "Bash(agent-browser open *)",
+      "Bash(agent-browser get *)",
+      "Bash(agent-browser snapshot *)",
       "Read(**)",
       "Edit(**)",
       "Write(**)"
