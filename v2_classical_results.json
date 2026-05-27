@@ -6,15 +6,15 @@
       "accuracy": 0.9701,
       "f1_macro": 0.7069,
       "f1_weighted": 0.9758,
-      "train_secs": 59.8
+      "train_secs": 62.1
     },
     {
       "model": "LogReg",
       "split": "test",
-      "accuracy": 0.7952,
-      "f1_macro": 0.5848,
-      "f1_weighted": 0.779,
-      "train_secs": 59.8
+      "accuracy": 0.7826,
+      "f1_macro": 0.5728,
+      "f1_weighted": 0.7628,
+      "train_secs": 62.1
     },
     {
       "model": "RandomForest",
@@ -27,9 +27,9 @@
     {
       "model": "RandomForest",
       "split": "test",
-      "accuracy": 0.7662,
-      "f1_macro": 0.5377,
-      "f1_weighted": 0.7218,
+      "accuracy": 0.7532,
+      "f1_macro": 0.5034,
+      "f1_weighted": 0.7052,
       "train_secs": 14.2
     },
     {
@@ -38,16 +38,16 @@
       "accuracy": 0.9992,
       "f1_macro": 0.9797,
       "f1_weighted": 0.9992,
-      "train_secs": 17.8
+      "train_secs": 17.4
     },
     {
       "model": "HistGBM",
       "split": "test",
-      "accuracy": 0.7768,
-      "f1_macro": 0.6062,
-      "f1_weighted": 0.7458,
-      "train_secs": 17.8
+      "accuracy": 0.7638,
+      "f1_macro": 0.5461,
+      "f1_weighted": 0.7294,
+      "train_secs": 17.4
     }
   ],
-  "best_model": "HistGBM"
+  "best_model": "LogReg"
 }

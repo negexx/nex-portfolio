@@ -2,7 +2,7 @@
 
 An LLM-orchestrated audit agent for ML codebases. Finds the mistakes a generic SAST tool can't (data leakage, model evadability) and the security mistakes specific to ML repos that Cursor doesn't know about (insecure pickle loading, secrets in notebook outputs, unpinned `!pip install`).
 
-> **Status — v0.2**: all 5 checks shipped end-to-end (detection, fixtures, tests, registry, CLI). 119 tests pass, mypy `--strict` clean, ruff clean. The LLM-orchestrated agent loop (DeepSeek-V4) is the next milestone — currently the CLI runs checks deterministically without involving an LLM.
+> **Status — v0.2**: all 5 checks shipped end-to-end (detection, fixtures, tests, registry, CLI). **174 tests pass** (3 skipped without TensorFlow installed locally), mypy `--strict` clean, ruff clean. The LLM-orchestrated agent loop (DeepSeek-V4 via `--with-llm`) is the next milestone — currently the CLI runs checks deterministically without involving an LLM.
 
 ## What it does
 
@@ -68,6 +68,25 @@ $ uv run mlsecops audit ../nids_v1_baseline.ipynb
 ```
 
 17 findings across 4 checks. `secrets` and `adversarial` correctly come up clean (no hardcoded creds in v1; no saved Keras artifacts in the notebook directory). Full Markdown report with per-rule rows, evidence, and fix proposals lives in [`docs/v1_audit_report.md`](docs/v1_audit_report.md).
+
+### Closing the loop — audit on the fixed v2 notebook
+
+```
+$ uv run mlsecops audit ../nids_pipeline_v2.ipynb
+
+                 mlsecops audit summary
+┌─────────────────┬──────────┬──────────────┬──────────┬────────┐
+│ Check           │ Findings │ Max severity │ Duration │ Status │
+├─────────────────┼──────────┼──────────────┼──────────┼────────┤
+│ leakage         │        2 │ high         │   3134ms │ issues │
+│ supply_chain    │        3 │ medium       │      1ms │ issues │
+│ adversarial     │        0 │ —            │      0ms │ clean  │
+│ deserialization │        0 │ —            │    329ms │ clean  │
+│ secrets         │        0 │ —            │      0ms │ clean  │
+└─────────────────┴──────────┴──────────────┴──────────┴────────┘
+```
+
+**v1 → v2: 17 → 5 findings (–70.6 %).** All 8 deserialization issues are gone. The 3 remaining `supply_chain` items are documented Colab-pasteability compromises. The 2 `leakage` items are honest static-analysis false positives (name-match heuristic firing on the column name v2 immediately drops; `le.fit()` on a constant string list flagged as data-dependent). Full diff and per-finding rationale: [`docs/v2_audit_report.md`](docs/v2_audit_report.md).
 
 ## Architecture
 
