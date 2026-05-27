@@ -81,6 +81,7 @@ def test_positive_fit_on_test_semgrep_fixture(monkeypatch: pytest.MonkeyPatch) -
     def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=list(args), returncode=1, stdout=payload, stderr="")
 
+    monkeypatch.setattr(semgrep_rules, "_semgrep_binary", lambda: "/usr/local/bin/semgrep")
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     findings = semgrep_rules.run_semgrep(fixture)
@@ -119,6 +120,7 @@ def test_positive_shuffle_false_fixture(monkeypatch: pytest.MonkeyPatch) -> None
     def _fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=list(args), returncode=1, stdout=payload, stderr="")
 
+    monkeypatch.setattr(semgrep_rules, "_semgrep_binary", lambda: "/usr/local/bin/semgrep")
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     findings = semgrep_rules.run_semgrep(fixture)
@@ -149,6 +151,7 @@ def test_negative_clean_pipeline_is_clean(monkeypatch: pytest.MonkeyPatch) -> No
             args=list(args), returncode=0, stdout=clean_payload, stderr=""
         )
 
+    monkeypatch.setattr(semgrep_rules, "_semgrep_binary", lambda: "/usr/local/bin/semgrep")
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     findings = semgrep_rules.run_semgrep(FIXTURES / "negative_clean_pipeline.py")

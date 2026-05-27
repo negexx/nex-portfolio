@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from ..models import CheckName, Finding, FixProposal, Severity
@@ -66,8 +67,22 @@ _FIX_SUMMARIES: dict[str, str] = {
 
 
 def _semgrep_binary() -> str | None:
-    """Return the path to the semgrep binary, or None if not installed."""
-    return shutil.which("semgrep")
+    """Return the path to the semgrep binary, or None if not installed.
+
+    Looks on PATH first, then in the active venv's scripts directory — when
+    semgrep is installed via ``pip install semgrep`` inside a venv that isn't
+    activated, ``shutil.which`` misses it because the venv's bin/Scripts dir
+    isn't on PATH.
+    """
+    found = shutil.which("semgrep")
+    if found:
+        return found
+
+    venv_bin = Path(sys.prefix) / ("Scripts" if sys.platform == "win32" else "bin")
+    for candidate in (venv_bin / "semgrep.exe", venv_bin / "semgrep"):
+        if candidate.is_file():
+            return str(candidate)
+    return None
 
 
 def run_semgrep(target: Path) -> list[Finding]:
