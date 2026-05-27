@@ -15,7 +15,7 @@ This is the closing-the-loop pass: the agent was first run on `nids_v1_baseline.
 | `leakage` | 2 | 2 | 0 (both **false positives** in v2) | v1's `difficulty_level` and SMOTE-before-split were real. v2 still mentions `difficulty_level` in its column list — but immediately drops it on the next line. `le.fit(['DoS','Normal',…])` is a constant string list, not data. Both are honest limitations of name/order-based heuristics, called out in the fix-confidence column ("medium" / "may be a false positive"). |
 | `supply_chain` | 7 | 3 | –4 | `!pip install imbalanced-learn -q` and the two `!wget` calls from raw GitHub are still present in v2. v2 intentionally didn't pin or checksum these — the pipeline must remain Colab-pasteable. Documented as a known compromise. |
 | `secrets` | 0 | 0 | 0 | Both clean. |
-| `adversarial` | 0 | 0 | 0 | No `.keras` artifact in the notebook directory at audit time. Re-run after training (artifact lands in `.v2_run/`) to fire FGSM. |
+| `adversarial` | 0 | 0 | 0 | FGSM ε=0.05 fired against `nids_v2_cnn.keras` + `nids_v2_lstm.keras` (Colab-trained). CNN flips **5 %** of confident probes, LSTM **1 %** — both well below the 50 % trivial-evasion threshold. The v2 models are *not* trivially evadable; see the section below. |
 | **Total** | **17** | **5** | **–12 (–70.6%)** | 3 of the 5 remaining are documented compromises; 2 are static-analysis false positives that the upcoming `--with-llm` pass will reclassify. |
 
 ## Summary
@@ -60,9 +60,27 @@ _Tool status: `ok`. Duration: 1ms._
 
 ## `adversarial` — 0 finding(s)
 
-_Tool status: `ok`. Duration: 0ms._
+_Tool status: `ok`. Duration: 6024ms._
 
-No issues found.
+FGSM (Fast Gradient Sign Method) evasion at ε=0.05 against the two Keras
+artifacts produced by the Colab run:
+
+| Model | Confident probes | Flipped | Attack success | Finding? |
+|---|---:|---:|---:|---|
+| `nids_v2_cnn.keras` | 100 | 5 | **5.0 %** | No (threshold 50 %) |
+| `nids_v2_lstm.keras` | 100 | 1 | **1.0 %** | No (threshold 50 %) |
+
+Both models are **not** trivially evadable — small-norm FGSM perturbations
+move predictions for only a tiny fraction of confident probes. This is an
+honest result: it contradicts the "LSTM is trivially evadable" claim that
+appeared in earlier portfolio drafts. That claim was speculation; this is
+measurement. The portfolio README has been updated accordingly.
+
+Probes were 100 uniform-random inputs in [0, 1] kept only if the model
+emitted a confident prediction (max softmax > 0.5). For a stronger probe
+distribution (real attack samples from `KDDTest+`) the result may differ —
+that's a follow-up: feed `X_test_3d[y_test == attack]` instead of uniform
+noise.
 
 ## `deserialization` — 0 finding(s)
 

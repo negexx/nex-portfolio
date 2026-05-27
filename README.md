@@ -22,7 +22,7 @@ This repo is the entire arc, in three artifacts:
 - **Sampling leakage** — applied SMOTE before the train/val split, so synthetic rows derived from val samples leaked into training
 - **Insecure deserialization** — `joblib.load(...)` on artifacts with no integrity check
 - **Supply-chain rot** — `!pip install ... -q` with no version pin, `!wget` from raw GitHub with no checksum
-- **Model evadability** — the trained LSTM flips on ε ≤ 0.05 FGSM perturbation for the majority of attack samples
+- **Model evadability** — saved Keras models with no robustness check. (The agent's `adversarial` check now actually *measures* this — see Act 3 for the real number.)
 
 None of these would be caught by `bandit`, `ruff`, `mypy`, or a generic SAST tool. They live in the seam between security and ML, and that seam is the subject of this portfolio.
 
@@ -70,7 +70,7 @@ What the agent catches in v1, mapped to the original "mistakes I shipped" list:
 | `!wget` from raw GitHub | `supply_chain.untrusted-wget-source` | ✅ caught (4 instances) |
 | `numpy.load(allow_pickle=True)` | `deserialization.unsafe-numpy-load` | ✅ caught (4 instances, bonus — wasn't on the original list) |
 | SMOTE before split | `leakage.preprocessing-before-split` | ⚠️ not flagged — v1 loads pre-split CSVs, no `train_test_split` call to anchor against. Honest static-analysis limitation; the `--with-llm` pass (next milestone) reclassifies on context. |
-| LSTM trivially evadable | `adversarial.fgsm-trivial-evasion` | ✅ check shipped. Doesn't fire on v1 because no `.keras` artifact ships in the notebook directory. Re-runs after Colab training, when `nids_v2_lstm.keras` lands in the repo. |
+| LSTM evadability claim | `adversarial.fgsm-trivial-evasion` | ✅ check shipped. Can't fire on v1 (no `.keras` artifact). Now measured on v2 — see Act 3 closing-loop section: **CNN 5 % / LSTM 1 % flip rate at ε=0.05** ⇒ neither is trivially evadable. The original "LSTM trivially evadable" line was speculation; this is the measurement. |
 
 Run it yourself:
 
@@ -93,7 +93,7 @@ uv run mlsecops eval                                 # P/R per check vs baseline
 | SMOTE before split | SMOTE on the training fold only, after `train_test_split(stratify=y)` |
 | `joblib.load` without integrity check | All artifacts saved with an accompanying SHA-256 manifest |
 | Unpinned `!pip install` | Pinned to exact versions (still needs a follow-up `requirements.txt` extraction) |
-| LSTM flips on tiny FGSM perturbation | Added adversarial training augmentation; robustness numbers in the notebook |
+| LSTM evadability — *speculation* in v1 README | Measured: CNN 5 % / LSTM 1 % flip rate under FGSM ε=0.05. Both models are *not* trivially evadable. The original claim was retracted on first measurement. |
 
 Five models are trained (LogReg, Random Forest, HistGBM, Conv1D CNN, LSTM) and compared on the held-out NSL-KDD test set. Decision engine on top is deterministic — confidence-bucketed actions with a protected-IP safety filter that forces human review even when the model is fully confident.
 
@@ -139,10 +139,12 @@ I re-ran the agent against the fixed pipeline. Full report: [`mlsecops-agent/doc
 | `leakage` | 2 | 2 | 0 — both v2 findings are **static-analysis false positives** the `--with-llm` pass will reclassify (the name `difficulty_level` still appears in v2's column list, but the next line drops it; `le.fit(['DoS',…])` is a constant string list, not data) |
 | `supply_chain` | 7 | 3 | –4 — remaining 3 are the Colab-pasteability compromise (`!pip install` unpinned, `!wget` from raw GitHub). Documented. |
 | `secrets` | 0 | 0 | 0 |
-| `adversarial` | 0 | 0 | 0 — fires after the Colab run when `nids_v2_lstm.keras` lands |
+| `adversarial` | 0 | 0 | FGSM ε=0.05: CNN 5 % / LSTM 1 % flip rate. Neither model is trivially evadable. Real measurement, not a claim. |
 | **Total** | **17** | **5** | **–70.6 %** |
 
 The agent caught everything it should have on v1 and confirmed the fixes worked on v2. Two false positives remain — both honestly disclosed in the report — and they're the kind of edge case that motivates the next milestone (the `--with-llm` reasoning layer).
+
+**FGSM bonus**: with the Colab-trained `nids_v2_cnn.keras` and `nids_v2_lstm.keras` dropped into the repo root, `mlsecops audit --include-adversarial` now actually measures evadability. Result: **CNN 5 % flip rate, LSTM 1 %** at ε=0.05 — both below the 50 % trivial-evasion threshold. The earlier "LSTM trivially evadable" line in this README was speculation; the agent now provides the measurement and it disproves the claim. Honest beats dramatic.
 
 ---
 

@@ -14,7 +14,7 @@ Five checks, two pillars:
 | 2 | `deserialization` | Security | libcst AST (joblib / pickle / torch / numpy unsafe loads) | ✅ |
 | 3 | `secrets` | Security | regex + notebook-output scan (escalated severity for committed outputs) | ✅ |
 | 4 | `leakage` | ML hygiene | libcst AST (SMOTE-before-split cross-cell, fit-on-test, label-proxy names) | ✅ ¹ |
-| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models) | ✅ (opt-in) |
+| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models — supports both dense `(N, features)` and Conv1D/LSTM `(N, features, 1)` shapes) | ✅ (opt-in) |
 
 Every finding is produced by a deterministic tool. The LLM never *decides* what is vulnerable — its role is orchestration, fix-narration, and executive summary (`mlsecops audit --with-llm`).
 
@@ -87,6 +87,15 @@ $ uv run mlsecops audit ../nids_pipeline_v2.ipynb
 ```
 
 **v1 → v2: 17 → 5 findings (–70.6 %).** All 8 deserialization issues are gone. The 3 remaining `supply_chain` items are documented Colab-pasteability compromises. The 2 `leakage` items are honest static-analysis false positives (name-match heuristic firing on the column name v2 immediately drops; `le.fit()` on a constant string list flagged as data-dependent). Full diff and per-finding rationale: [`docs/v2_audit_report.md`](docs/v2_audit_report.md).
+
+With the Colab-trained `.keras` artifacts in place, `--include-adversarial` actually fires:
+
+```
+CNN  flip rate at eps=0.05: 5 / 100 confident probes  (5 %)
+LSTM flip rate at eps=0.05: 1 / 100 confident probes  (1 %)
+```
+
+Both well under the 50 % trivial-evasion threshold — no `adversarial.fgsm-trivial-evasion` finding emitted. The v2 models are *not* trivially evadable on random probes; the v1 README's "LSTM trivially evadable" line was speculation that the measurement disproved.
 
 ## Architecture
 
