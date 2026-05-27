@@ -49,6 +49,7 @@ reports/
 # Never commit ML artifacts — they are exactly what we audit
 *.pkl
 *.h5
+*.keras
 *.pt
 *.pth
 *.onnx
@@ -56,6 +57,7 @@ reports/
 # Exception: explicit test fixtures live under tests/fixtures/ — those are intentional
 !tests/fixtures/**/*.pkl
 !tests/fixtures/**/*.h5
+!tests/fixtures/**/*.keras
 
 # Claude workspace — personal overrides + per-developer memory
 .claude/settings.local.json

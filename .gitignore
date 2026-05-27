@@ -1,3 +1,13 @@
+# ML artifacts — we audit this pattern; don't commit
+*.pkl
+*.h5
+*.keras
+*.pt
+*.pth
+*.onnx
+*.safetensors
+!tests/fixtures/**
+
 # Python
 __pycache__/
 *.py[cod]
