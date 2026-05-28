@@ -6,6 +6,7 @@
 *.pth
 *.onnx
 *.safetensors
+*.npy
 !tests/fixtures/**
 
 # Python
