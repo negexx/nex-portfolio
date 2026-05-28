@@ -107,15 +107,7 @@ def _location(finding: Finding, target_root: Path | None) -> dict[str, Any]:
     is portable across machines (absolute Windows paths are not consumable by
     GitHub Code Scanning).
     """
-    path = finding.file
-    uri: str
-    if target_root is not None:
-        try:
-            uri = path.resolve().relative_to(target_root.resolve()).as_posix()
-        except ValueError:
-            uri = path.as_posix()
-    else:
-        uri = path.as_posix()
+    uri = _relative_uri(finding.file, target_root)
 
     region: dict[str, Any] = {}
     if finding.line_start is not None:
@@ -132,26 +124,85 @@ def _location(finding: Finding, target_root: Path | None) -> dict[str, Any]:
 
 
 def _result(finding: Finding, target_root: Path | None) -> dict[str, Any]:
-    """Build a single SARIF ``result`` object from a Finding."""
+    """Build a single SARIF ``result`` object from a Finding.
+
+    SARIF 2.1.0's ``fix`` object requires a non-empty ``artifactChanges``
+    array. Our :class:`FixProposal` is narrative most of the time (a sentence
+    explaining the remediation, no concrete diff/replacement), so we only
+    populate ``result.fixes`` when we actually have a patch. Narrative-only
+    fix proposals land in ``result.properties.fixDescription`` so consumers
+    still see the guidance without producing a schema-invalid envelope.
+    """
+    properties: dict[str, Any] = {
+        "security-severity": _SECURITY_SEVERITY[finding.severity],
+        "category": finding.category,
+        "check": finding.check.value,
+    }
     result: dict[str, Any] = {
         "ruleId": finding.id,
         "level": _SARIF_LEVEL[finding.severity],
         "message": {"text": finding.message},
         "locations": [_location(finding, target_root)],
-        "properties": {
-            "security-severity": _SECURITY_SEVERITY[finding.severity],
-            "category": finding.category,
-            "check": finding.check.value,
-        },
+        "properties": properties,
     }
     if finding.fix is not None:
-        result["fixes"] = [
-            {
-                "description": {"text": finding.fix.summary},
-                "properties": {"confidence": finding.fix.confidence},
-            }
-        ]
+        properties["fixConfidence"] = finding.fix.confidence
+        properties["fixDescription"] = finding.fix.summary
+
+        artifact_changes = _artifact_changes_from_fix(finding, target_root)
+        if artifact_changes is not None:
+            result["fixes"] = [
+                {
+                    "description": {"text": finding.fix.summary},
+                    "artifactChanges": artifact_changes,
+                }
+            ]
     return result
+
+
+def _artifact_changes_from_fix(
+    finding: Finding, target_root: Path | None
+) -> list[dict[str, Any]] | None:
+    """Build a SARIF ``artifactChanges`` array from a FixProposal, or None.
+
+    Returns None when the proposal is narrative-only (no ``replacement`` and
+    no ``diff``). SARIF requires the array to contain a concrete patch; we
+    don't fabricate one from the summary text.
+    """
+    fix = finding.fix
+    if fix is None or fix.replacement is None:
+        # We don't ship diff-to-SARIF conversion yet; only literal replacements
+        # produce artifactChanges. Narrative + diff combinations fall back to
+        # properties.fixDescription.
+        return None
+
+    uri = _relative_uri(finding.file, target_root)
+    region: dict[str, Any] = {}
+    if finding.line_start is not None:
+        region["startLine"] = finding.line_start
+    if finding.line_end is not None:
+        region["endLine"] = finding.line_end
+
+    replacement: dict[str, Any] = {"insertedContent": {"text": fix.replacement}}
+    if region:
+        replacement["deletedRegion"] = region
+
+    return [
+        {
+            "artifactLocation": {"uri": uri},
+            "replacements": [replacement],
+        }
+    ]
+
+
+def _relative_uri(path: Path, target_root: Path | None) -> str:
+    """Relativise *path* against *target_root* where possible; posix-format."""
+    if target_root is not None:
+        try:
+            return path.resolve().relative_to(target_root.resolve()).as_posix()
+        except ValueError:
+            pass
+    return path.as_posix()
 
 
 # ---------------------------------------------------------------------------

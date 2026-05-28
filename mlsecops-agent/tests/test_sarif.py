@@ -100,14 +100,69 @@ def test_file_paths_are_relativised_against_target_root(tmp_path: Path) -> None:
     assert uri == "sub/notebook.ipynb", f"expected posix relative uri; got {uri!r}"
 
 
-def test_fix_proposal_serialised_into_result_fixes() -> None:
-    f = _finding()
+def test_narrative_fix_lands_in_properties_not_in_fixes_array() -> None:
+    """SARIF requires fix.artifactChanges to be present. Narrative-only
+    FixProposals (no `replacement` / no `diff`) MUST NOT emit a `fixes`
+    array — GitHub Code Scanning rejects the document otherwise. The
+    narrative goes into result.properties.fixDescription instead.
+    """
+    f = _finding()  # default FixProposal has summary + confidence only
     result = CheckResult(check=CheckName.DESERIALIZATION, findings=[f], duration_ms=1)
     doc = json.loads(render_sarif([result]))
-    fixes = doc["runs"][0]["results"][0]["fixes"]
+    sarif_result = doc["runs"][0]["results"][0]
+
+    assert "fixes" not in sarif_result, (
+        "narrative-only fix must not emit a `fixes` array — SARIF requires "
+        "artifactChanges in every fix entry"
+    )
+    assert sarif_result["properties"]["fixDescription"].startswith("Use safetensors")
+    assert sarif_result["properties"]["fixConfidence"] == "high"
+
+
+def test_concrete_replacement_fix_produces_valid_artifact_changes() -> None:
+    """When a FixProposal carries a literal `replacement`, the SARIF output
+    must include a properly-formed `fixes` array with artifactChanges that
+    GitHub Code Scanning validates against the SARIF schema.
+    """
+    f = Finding(
+        id="deserialization.unsafe-joblib-load",
+        check=CheckName.DESERIALIZATION,
+        severity=Severity.HIGH,
+        category="insecure-deserialization",
+        file=Path("notebook.ipynb"),
+        line_start=10,
+        line_end=10,
+        message="unsafe joblib.load",
+        evidence="joblib.load('model.pkl')",
+        fix=FixProposal(
+            summary="Switch to safetensors.load_file with a known digest.",
+            replacement=(
+                "from safetensors.numpy import load_file\n"
+                "_ARTIFACT_SHA = '<sha256-here>'\n"
+                "assert _sha256('model.safetensors') == _ARTIFACT_SHA\n"
+                "model = load_file('model.safetensors')\n"
+            ),
+            confidence="high",
+        ),
+    )
+    result = CheckResult(check=CheckName.DESERIALIZATION, findings=[f], duration_ms=1)
+    doc = json.loads(render_sarif([result]))
+    sarif_result = doc["runs"][0]["results"][0]
+
+    assert "fixes" in sarif_result
+    fixes = sarif_result["fixes"]
     assert len(fixes) == 1
-    assert "safetensors" in fixes[0]["description"]["text"]
-    assert fixes[0]["properties"]["confidence"] == "high"
+    assert fixes[0]["description"]["text"].startswith("Switch to safetensors")
+
+    artifact_changes = fixes[0]["artifactChanges"]
+    assert len(artifact_changes) == 1
+    change = artifact_changes[0]
+    assert change["artifactLocation"]["uri"] == "notebook.ipynb"
+    assert len(change["replacements"]) == 1
+    repl = change["replacements"][0]
+    assert "safetensors" in repl["insertedContent"]["text"]
+    assert repl["deletedRegion"]["startLine"] == 10
+    assert repl["deletedRegion"]["endLine"] == 10
 
 
 def test_render_is_deterministic() -> None:

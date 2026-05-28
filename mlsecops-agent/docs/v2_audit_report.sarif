@@ -80,18 +80,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "dependency-pinning",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "high",
+            "fixDescription": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -118,18 +110,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -156,18 +140,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         }
       ],
       "invocations": [
@@ -207,7 +183,7 @@
               },
               "level": "note",
               "message": {
-                "text": "check=leakage status=ok duration_ms=3185"
+                "text": "check=leakage status=ok duration_ms=2340"
               }
             },
             {

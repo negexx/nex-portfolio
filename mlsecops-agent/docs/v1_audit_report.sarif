@@ -185,18 +185,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "dependency-pinning",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "high",
+            "fixDescription": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+          }
         },
         {
           "ruleId": "supply_chain.unpinned-pip-install",
@@ -223,18 +215,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "dependency-pinning",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "high",
+            "fixDescription": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+          }
         },
         {
           "ruleId": "supply_chain.unpinned-pip-install",
@@ -261,18 +245,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "dependency-pinning",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Pin `openai` to a known-good version: `!pip install openai==X.Y.Z` and record it in requirements.txt / pyproject.toml."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "high",
+            "fixDescription": "Pin `openai` to a known-good version: `!pip install openai==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -299,18 +275,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -337,18 +305,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -375,18 +335,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         },
         {
           "ruleId": "supply_chain.untrusted-wget-source",
@@ -413,18 +365,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "download-integrity",
-            "check": "supply_chain"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "supply_chain",
+            "fixConfidence": "medium",
+            "fixDescription": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-numpy-load",
@@ -451,18 +395,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-joblib-load",
@@ -489,18 +425,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-numpy-load",
@@ -527,18 +455,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-joblib-load",
@@ -565,18 +485,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-numpy-load",
@@ -603,18 +515,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-joblib-load",
@@ -641,18 +545,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-numpy-load",
@@ -679,18 +575,10 @@
           "properties": {
             "security-severity": "5.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+          }
         },
         {
           "ruleId": "deserialization.unsafe-joblib-load",
@@ -717,18 +605,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "insecure-deserialization",
-            "check": "deserialization"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "deserialization",
+            "fixConfidence": "high",
+            "fixDescription": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+          }
         },
         {
           "ruleId": "leakage.label-proxy-feature",
@@ -755,18 +635,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "data-leakage",
-            "check": "leakage"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "leakage",
+            "fixConfidence": "medium",
+            "fixDescription": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
+          }
         },
         {
           "ruleId": "leakage.label-proxy-feature",
@@ -793,18 +665,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "data-leakage",
-            "check": "leakage"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
-              },
-              "properties": {
-                "confidence": "medium"
-              }
-            }
-          ]
+            "check": "leakage",
+            "fixConfidence": "medium",
+            "fixDescription": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
+          }
         },
         {
           "ruleId": "scenario.supply-chain-to-rce",
@@ -829,18 +693,10 @@
           "properties": {
             "security-severity": "9.5",
             "category": "threat-scenario",
-            "check": "scenario"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Pin the download to a checksum (SHA-256 manifest beside the URL) AND switch the load to a safe format (safetensors / ONNX / JSON). Either fix alone leaves the chain partially intact."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "scenario",
+            "fixConfidence": "high",
+            "fixDescription": "Pin the download to a checksum (SHA-256 manifest beside the URL) AND switch the load to a safe format (safetensors / ONNX / JSON). Either fix alone leaves the chain partially intact."
+          }
         },
         {
           "ruleId": "scenario.label-leakage-to-inflated-metrics",
@@ -865,18 +721,10 @@
           "properties": {
             "security-severity": "7.5",
             "category": "threat-scenario",
-            "check": "scenario"
-          },
-          "fixes": [
-            {
-              "description": {
-                "text": "Drop the label proxy, move every fit/fit_transform/fit_resample to after train_test_split, and rerun evaluation. Expect a real F1 drop — that's the correct number."
-              },
-              "properties": {
-                "confidence": "high"
-              }
-            }
-          ]
+            "check": "scenario",
+            "fixConfidence": "high",
+            "fixDescription": "Drop the label proxy, move every fit/fit_transform/fit_resample to after train_test_split, and rerun evaluation. Expect a real F1 drop — that's the correct number."
+          }
         }
       ],
       "invocations": [
@@ -898,7 +746,7 @@
               },
               "level": "note",
               "message": {
-                "text": "check=deserialization status=ok duration_ms=954"
+                "text": "check=deserialization status=ok duration_ms=908"
               }
             },
             {
@@ -916,7 +764,7 @@
               },
               "level": "note",
               "message": {
-                "text": "check=leakage status=ok duration_ms=3499"
+                "text": "check=leakage status=ok duration_ms=2589"
               }
             },
             {
