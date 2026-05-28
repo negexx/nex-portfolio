@@ -131,9 +131,9 @@ Per-class on test (best model, LogReg):
 
 DoS / Normal / Probe are well-handled. R2L and U2R recall is poor — they're the tiny, novel-attack-laden classes that are the unsolved part of NSL-KDD across the literature, not a defect of this pipeline.
 
-![v2 confusion matrices for LogReg / RandomForest / HistGBM](v2_confusion_matrix.png)
+![v2 confusion matrices for LogReg / RandomForest / HistGBM](nids_v2_outputs/confusion_matrix.png)
 
-Raw artifacts: [`v2_classical_results.json`](v2_classical_results.json) (per-model accuracy / F1 / train time), [`v2_classical_log.txt`](v2_classical_log.txt) (full stdout), [`v2_confusion_matrix.png`](v2_confusion_matrix.png).
+Raw artifacts under [`nids_v2_outputs/`](nids_v2_outputs/): [`classical_results.json`](nids_v2_outputs/classical_results.json) (per-model accuracy / F1 / train time), [`classical_log.txt`](nids_v2_outputs/classical_log.txt) (full stdout), [`confusion_matrix.png`](nids_v2_outputs/confusion_matrix.png). The reproducer script is [`mlsecops-agent/scripts/v2_classical_baselines.py`](mlsecops-agent/scripts/v2_classical_baselines.py).
 
 > **Deep models (Conv1D CNN + LSTM) status:** still deferred to Colab. Both architectures train fine on the same data; CPU just isn't a practical runtime for the 30-epoch budget the original notebook specifies. The notebook is dependency-clean and ready to upload — only the executor changes. [`nids_pipeline_v2_colab.ipynb`](nids_pipeline_v2_colab.ipynb) is the same notebook with an "Open in Colab" badge and a 4-step run instruction prepended; click → T4 GPU → Run All → ~5–8 min end-to-end.
 
@@ -183,27 +183,45 @@ The intersection of "security" and "ML hygiene" is underserved. Generic SAST too
 
 ```
 nex-portfolio/
-├── nids_v1_baseline.ipynb           # Act 1 — the "before"
-├── nids_pipeline_v2.ipynb           # Act 3 — the "after" (Colab-ready source)
-├── mlsecops-agent/                  # Act 2 — the tool that produced the diff
+├── README.md                        # the story — you are here
+├── nids_v1_baseline.ipynb           # Act 1 — the intentionally-vulnerable baseline
+├── nids_pipeline_v2.ipynb           # Act 3 — the fixed pipeline (source notebook)
+├── nids_pipeline_v2_colab.ipynb     # Act 3 — same notebook with one-click Colab badge
+├── nids_v2_outputs/                 # Act 3 — classical baseline run artifacts
+│   ├── classical_results.json       # per-model accuracy / F1 / train_secs
+│   ├── classical_log.txt            # full stdout of the reproducer script
+│   └── confusion_matrix.png         # 3-panel grid (LogReg / RF / HistGBM)
+├── mlsecops-agent/                  # Act 2 — the audit agent
+│   ├── README.md
+│   ├── pyproject.toml
+│   ├── .env.template
 │   ├── src/mlsecops_agent/
-│   │   ├── cli.py                   # `audit`, `check`, `eval`
-│   │   ├── checks/                  # supply_chain, deserialization, secrets, leakage, adversarial
+│   │   ├── cli.py                   # `audit`, `check`, `eval`, `history`
+│   │   ├── agent.py                 # LLM-orchestrated audit loop (--with-llm)
+│   │   ├── scenarios.py             # cross-check threat-chain synthesis
+│   │   ├── models.py                # Pydantic types
+│   │   ├── checks/                  # supply_chain, deserialization, secrets, leakage, adversarial, semgrep_rules
 │   │   ├── eval/                    # fixture-based P/R/F1 harness
-│   │   ├── reporting/               # Markdown report renderer
-│   │   └── models.py
+│   │   ├── reporting/               # Markdown + SARIF renderers
+│   │   ├── llm/                     # provider + Langfuse tracer
+│   │   ├── storage/                 # SQLite run history
+│   │   ├── prompts/, rules/         # system prompt + ml-hygiene semgrep rules
+│   │   └── sandbox.py               # contract stub for isolated execution
 │   ├── tests/
 │   │   ├── checks/                  # per-check tests (10–41 each)
-│   │   ├── fixtures/                # positive + negative .ipynb per check
-│   │   ├── fixtures/EVAL_BASELINE.json
-│   │   ├── test_cli.py
-│   │   ├── test_eval.py
-│   │   └── test_reporting.py
-│   ├── docs/v1_audit_report.md      # full Markdown audit of v1 (17 findings)
-│   ├── docs/v2_audit_report.md      # closing-loop audit of v2 (5 findings; 3 documented, 2 FP)
-│   ├── docs/v1_supply_chain_output.txt
-│   └── README.md
-└── README.md                        # you are here
+│   │   ├── fixtures/                # positive + negative .ipynb per check + EVAL_BASELINE.json
+│   │   └── test_*.py                # cli, eval, reporting, sarif, scenarios, storage, agent, llm, observability
+│   ├── docs/
+│   │   ├── v1_audit_report.md       # full v1 audit (19 findings inc. 2 CRITICAL scenarios)
+│   │   ├── v1_audit_report.sarif    # same data as SARIF 2.1.0
+│   │   ├── v2_audit_report.md       # closing-loop audit on v2 (4 findings — 1 real adversarial)
+│   │   └── v2_audit_report.sarif
+│   ├── scripts/
+│   │   ├── extract_v2_probes.py     # rebuilds *.npy adversarial probes
+│   │   └── v2_classical_baselines.py# reproduces nids_v2_outputs/
+│   └── .claude/                     # AI workspace (CLAUDE.md, ADRs, commands, subagents)
+├── .github/workflows/ci.yml         # test gate + self-audit -> Code Scanning
+└── .gitignore
 ```
 
 ## License
