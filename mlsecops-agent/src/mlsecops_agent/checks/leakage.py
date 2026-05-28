@@ -276,6 +276,20 @@ def _first_pos_arg_name(node: cst.Call) -> str | None:
     return None
 
 
+def _first_pos_arg_is_literal_collection(node: cst.Call) -> bool:
+    """Return True when the first positional arg is a list/tuple/set literal.
+
+    Calls of the form ``encoder.fit(['DoS', 'Normal', ...])`` register classes
+    against a constant set — they are *not* data-dependent fits and must not
+    be flagged as ``preprocessing-before-split``.
+    """
+    for arg in node.args:
+        if arg.keyword is not None:
+            continue
+        return isinstance(arg.value, (cst.List, cst.Tuple, cst.Set))
+    return False
+
+
 def _extract_string_literals(node: cst.BaseExpression) -> list[str]:
     """Recursively collect string literals from a list/tuple expression."""
     results: list[str] = []
@@ -315,6 +329,15 @@ class _LeakageVisitor(cst.CSTVisitor):
         # (line_start, line_end, evidence) tuples
         self._split_lines: list[int] = []
         self._fit_calls: list[tuple[int, int, str]] = []  # (line_start, line_end, evidence)
+        # Column names passed to ``df.drop(columns=[...])`` anywhere in the
+        # module. Used to suppress label-proxy findings for columns the code
+        # explicitly removes before training (the proxy is not in the feature
+        # set, so it cannot leak).
+        self._dropped_columns: set[str] = set()
+        # Label-proxy findings are staged here and filtered against
+        # ``_dropped_columns`` in ``finalize`` (the drop call may appear *after*
+        # the list literal in document order).
+        self._pending_proxy_findings: list[tuple[str, _RawFinding]] = []
 
     # ------------------------------------------------------------------
     # Call visitor — rules 1 and 2
@@ -335,9 +358,19 @@ class _LeakageVisitor(cst.CSTVisitor):
             self._split_lines.append(pos.start.line)
             return
 
-        # Rule 1 — fit call detection (stored; emitted after full traversal)
-        if attr in _FIT_ATTRS:
+        # Rule 1 — fit call detection (stored; emitted after full traversal).
+        # Skip calls whose first positional arg is a literal collection — these
+        # register classes against a constant (e.g. ``le.fit(['DoS','Normal'])``)
+        # and are not data-dependent.
+        if attr in _FIT_ATTRS and not _first_pos_arg_is_literal_collection(node):
             self._fit_calls.append((pos.start.line, pos.end.line, evidence))
+
+        # Track ``df.drop(columns=[...])`` to suppress label-proxy false
+        # positives on columns that get explicitly removed before training.
+        if attr == "drop":
+            for arg in node.args:
+                if arg.keyword is not None and arg.keyword.value in {"columns", "labels"}:
+                    self._dropped_columns.update(_extract_string_literals(arg.value))
 
         # Rule 2 — fit on test set
         if (
@@ -377,7 +410,9 @@ class _LeakageVisitor(cst.CSTVisitor):
         pos: meta.CodeRange,
         context_desc: str,
     ) -> None:
-        """Emit Rule-3 findings for any label-proxy column names in a list."""
+        """Stage Rule-3 candidates; final filter against dropped columns happens
+        in :py:meth:`finalize` once the visitor has seen every ``.drop()`` call.
+        """
         cols = _extract_string_literals(value_node)
         proxies = [c for c in cols if _is_label_proxy(c)]
         if not proxies:
@@ -387,24 +422,27 @@ class _LeakageVisitor(cst.CSTVisitor):
         except Exception:
             evidence = ", ".join(proxies)
         for proxy in proxies:
-            self.raw_findings.append(
-                _RawFinding(
-                    rule_id="leakage.label-proxy-feature",
-                    severity=Severity.HIGH,
-                    category="data-leakage",
-                    line_start=pos.start.line,
-                    line_end=pos.end.line,
-                    evidence=evidence[:200],
-                    message=(
-                        f"Column `{proxy}` in {context_desc} matches a label-proxy pattern. "
-                        "If this column encodes the target (directly or indirectly) and is "
-                        "included in the feature set, the model will have access to the "
-                        "answer at inference time."
-                    ),
-                    fix_summary=(
-                        f"Confirm whether `{proxy}` is a label proxy — this is a "
-                        "name-match heuristic and may be a false positive. "
-                        "If it is a proxy, remove it from the feature list before training."
+            self._pending_proxy_findings.append(
+                (
+                    proxy,
+                    _RawFinding(
+                        rule_id="leakage.label-proxy-feature",
+                        severity=Severity.HIGH,
+                        category="data-leakage",
+                        line_start=pos.start.line,
+                        line_end=pos.end.line,
+                        evidence=evidence[:200],
+                        message=(
+                            f"Column `{proxy}` in {context_desc} matches a label-proxy pattern. "
+                            "If this column encodes the target (directly or indirectly) and is "
+                            "included in the feature set, the model will have access to the "
+                            "answer at inference time."
+                        ),
+                        fix_summary=(
+                            f"Confirm whether `{proxy}` is a label proxy — this is a "
+                            "name-match heuristic and may be a false positive. "
+                            "If it is a proxy, remove it from the feature list before training."
+                        ),
                     ),
                 )
             )
@@ -424,7 +462,15 @@ class _LeakageVisitor(cst.CSTVisitor):
     # ------------------------------------------------------------------
 
     def finalize(self) -> None:
-        """Emit preprocessing-before-split findings after full traversal."""
+        """Emit preprocessing-before-split + filtered label-proxy findings."""
+        # Label-proxy findings: drop entries whose column is also passed to
+        # ``df.drop(columns=...)`` later in the module — those columns can't
+        # leak because they're not in the feature set.
+        for col, raw in self._pending_proxy_findings:
+            if col in self._dropped_columns:
+                continue
+            self.raw_findings.append(raw)
+
         if not self._split_lines:
             return
         earliest_split = min(self._split_lines)

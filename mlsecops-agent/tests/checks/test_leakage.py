@@ -153,6 +153,79 @@ def _make_nb(cells: list[str]) -> bytes:
     return json.dumps(data).encode()
 
 
+def test_label_proxy_suppressed_when_column_is_dropped(tmp_path: Path) -> None:
+    """A label-proxy column name listed in ``columns = [...]`` must NOT be
+    flagged when the code later calls ``df.drop(columns=[<name>])``.
+
+    Regression: v2's preprocessing pipeline declares ``difficulty_level`` in
+    the read_csv schema and immediately drops it. The earlier name-only
+    heuristic flagged it as a label-proxy leak, which is wrong — the column
+    never reaches the model.
+    """
+    nb = tmp_path / "proxy_dropped.ipynb"
+    nb.write_bytes(
+        _make_nb(
+            [
+                "columns = ['duration', 'src_bytes', 'label', 'difficulty_level']\n"
+                "train_df = pd.read_csv('train.csv', names=columns)\n"
+                "train_df = train_df.drop(columns=['difficulty_level'])\n",
+            ]
+        )
+    )
+    result = leakage.run(nb)
+    ids = [f.id for f in result.findings]
+    assert "leakage.label-proxy-feature" not in ids, (
+        "difficulty_level is dropped in the same module — proxy finding must "
+        f"be suppressed; got: {ids}"
+    )
+
+
+def test_label_proxy_still_flagged_when_not_dropped(tmp_path: Path) -> None:
+    """If the proxy column is *not* dropped anywhere, the finding still fires."""
+    nb = tmp_path / "proxy_kept.ipynb"
+    nb.write_bytes(
+        _make_nb(
+            [
+                "columns = ['duration', 'src_bytes', 'label', 'difficulty_level']\n"
+                "train_df = pd.read_csv('train.csv', names=columns)\n"
+                "X = train_df[columns]  # difficulty_level still in features\n",
+            ]
+        )
+    )
+    result = leakage.run(nb)
+    ids = [f.id for f in result.findings]
+    assert "leakage.label-proxy-feature" in ids, (
+        f"difficulty_level not dropped — must still be flagged; got: {ids}"
+    )
+
+
+def test_fit_on_literal_list_not_flagged_as_preprocessing_leak(tmp_path: Path) -> None:
+    """``LabelEncoder.fit(['DoS', 'Normal', ...])`` registers classes against
+    a constant string list — not a data-dependent fit. Must NOT be flagged as
+    preprocessing-before-split even when train_test_split appears later.
+
+    Regression for v2's ``le.fit(['DoS','Normal','Probe','R2L','U2R'])`` line.
+    """
+    nb = tmp_path / "literal_fit.ipynb"
+    nb.write_bytes(
+        _make_nb(
+            [
+                "from sklearn.preprocessing import LabelEncoder\n"
+                "le = LabelEncoder()\n"
+                "le.fit(['DoS', 'Normal', 'Probe', 'R2L', 'U2R'])\n",
+                "from sklearn.model_selection import train_test_split\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X, y)\n",
+            ]
+        )
+    )
+    result = leakage.run(nb)
+    ids = [f.id for f in result.findings]
+    assert "leakage.preprocessing-before-split" not in ids, (
+        "fit() on a literal string list is class registration, not data fitting; "
+        f"finding must be suppressed; got: {ids}"
+    )
+
+
 def test_cross_cell_positive_smote_before_split(tmp_path: Path) -> None:
     """SMOTE fit_resample in cell 0, train_test_split in cell 1 → flagged."""
     nb = tmp_path / "positive_cross.ipynb"
