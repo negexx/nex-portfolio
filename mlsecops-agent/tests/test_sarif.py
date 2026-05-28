@@ -73,9 +73,7 @@ def test_severity_maps_to_sarif_level_and_security_severity() -> None:
     high = _finding(severity=Severity.HIGH)
     medium = _finding(severity=Severity.MEDIUM, rule_id="supply_chain.unpinned-pip-install")
     info = _finding(severity=Severity.INFO, rule_id="info.demo")
-    result = CheckResult(
-        check=CheckName.SUPPLY_CHAIN, findings=[high, medium, info], duration_ms=5
-    )
+    result = CheckResult(check=CheckName.SUPPLY_CHAIN, findings=[high, medium, info], duration_ms=5)
     doc = json.loads(render_sarif([result]))
     results = {r["ruleId"]: r for r in doc["runs"][0]["results"]}
 
@@ -84,9 +82,7 @@ def test_severity_maps_to_sarif_level_and_security_severity() -> None:
     assert results["info.demo"]["level"] == "note"
 
     # security-severity (GitHub convention) on each result
-    assert (
-        results["deserialization.unsafe-joblib-load"]["properties"]["security-severity"] == "7.5"
-    )
+    assert results["deserialization.unsafe-joblib-load"]["properties"]["security-severity"] == "7.5"
     assert results["info.demo"]["properties"]["security-severity"] == "2.0"
 
 
@@ -98,9 +94,9 @@ def test_file_paths_are_relativised_against_target_root(tmp_path: Path) -> None:
     result = CheckResult(check=CheckName.DESERIALIZATION, findings=[f], duration_ms=1)
     doc = json.loads(render_sarif([result], target_root=tmp_path))
 
-    uri = doc["runs"][0]["results"][0]["locations"][0]["physicalLocation"][
-        "artifactLocation"
-    ]["uri"]
+    uri = doc["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"][
+        "uri"
+    ]
     assert uri == "sub/notebook.ipynb", f"expected posix relative uri; got {uri!r}"
 
 
@@ -117,9 +113,7 @@ def test_fix_proposal_serialised_into_result_fixes() -> None:
 def test_render_is_deterministic() -> None:
     f1 = _finding()
     f2 = _finding(rule_id="leakage.fit-on-test", check=CheckName.LEAKAGE)
-    result = CheckResult(
-        check=CheckName.DESERIALIZATION, findings=[f1, f2], duration_ms=10
-    )
+    result = CheckResult(check=CheckName.DESERIALIZATION, findings=[f1, f2], duration_ms=10)
     a = render_sarif([result])
     b = render_sarif([result])
     assert a == b, "same input must produce byte-identical output"

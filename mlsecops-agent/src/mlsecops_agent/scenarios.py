@@ -189,8 +189,7 @@ def synthesise_scenarios(findings: list[Finding]) -> list[Finding]:
                 line_start=None,
                 line_end=None,
                 message=(
-                    f"{scen.name}. {scen.narrative} "
-                    f"(amplifiers triggered: {len(amplifier_hits)})"
+                    f"{scen.name}. {scen.narrative} (amplifiers triggered: {len(amplifier_hits)})"
                 ),
                 evidence="chained findings: " + ", ".join(evidence_lines),
                 fix=FixProposal(summary=scen.fix, confidence="high"),

@@ -208,9 +208,7 @@ def test_conv1d_3d_input_shape_is_supported(tmp_path: Path) -> None:
 
     model = tf.keras.Sequential(
         [
-            tf.keras.layers.Conv1D(
-                8, 3, activation="relu", padding="same", input_shape=(10, 1)
-            ),
+            tf.keras.layers.Conv1D(8, 3, activation="relu", padding="same", input_shape=(10, 1)),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(3, activation="softmax"),
         ]
