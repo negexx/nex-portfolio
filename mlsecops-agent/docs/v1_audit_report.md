@@ -1,23 +1,38 @@
 # mlsecops audit report
 
 - **Target:** `..\nids_v1_baseline.ipynb`
-- **Generated:** 2026-05-26 01:21:57 UTC
-- **Total findings:** 17
+- **Generated:** 2026-05-28 00:28:51 UTC
+- **Total findings:** 19
 - **Exit status:** ❌ blocking (HIGH/CRITICAL present)
 
 ## Summary
 
 | Check | Findings | Max severity | Duration | Status |
 |---|---:|---|---:|---|
-| `deserialization` | 8 | 🟠 high | 1006ms | issues |
-| `leakage` | 2 | 🟠 high | 4010ms | issues |
+| `scenario` | 2 | 🔴 critical | 0ms | issues |
+| `deserialization` | 8 | 🟠 high | 954ms | issues |
+| `leakage` | 2 | 🟠 high | 3499ms | issues |
 | `supply_chain` | 7 | 🟡 medium | 3ms | issues |
 | `adversarial` | 0 | — | 0ms | clean |
 | `secrets` | 0 | — | 1ms | clean |
 
+## `scenario` — 2 finding(s)
+
+_Tool status: `ok`. Duration: 0ms._
+
+| Severity | Rule | Location | Message | Evidence |
+|---|---|---|---|---|
+| 🔴 critical | `scenario.supply-chain-to-rce` | `..\nids_v1_baseline.ipynb` | Supply-chain compromise → arbitrary code execution. Untrusted download + unsafe deserialisation = full attack chain. An attacker who controls the wget source can ship a malicious pickle/joblib payload; the unverified load executes their code on every machine that runs the notebook. The two findings are individually 'medium' / 'high' but the *chain* is critical. (amplifiers triggered: 1) | `chained findings: deserialization.unsafe-joblib-load, supply_chain.unpinned-pip-install, supply_chain.untrusted-wget-source` |
+| 🟠 high | `scenario.label-leakage-to-inflated-metrics` | `..\nids_v1_baseline.ipynb` | Label leakage → inflated evaluation metrics. Label-proxy features combined with sloppy split discipline produce evaluation metrics that look great in the notebook and collapse on deployment. Every additional finding here multiplies the gap between reported and real performance. (amplifiers triggered: 0) | `chained findings: leakage.label-proxy-feature` |
+
+### Fix proposals
+
+- **`scenario.supply-chain-to-rce`** at `..\nids_v1_baseline.ipynb` (high confidence) — Pin the download to a checksum (SHA-256 manifest beside the URL) AND switch the load to a safe format (safetensors / ONNX / JSON). Either fix alone leaves the chain partially intact.
+- **`scenario.label-leakage-to-inflated-metrics`** at `..\nids_v1_baseline.ipynb` (high confidence) — Drop the label proxy, move every fit/fit_transform/fit_resample to after train_test_split, and rerun evaluation. Expect a real F1 drop — that's the correct number.
+
 ## `deserialization` — 8 finding(s)
 
-_Tool status: `ok`. Duration: 1006ms._
+_Tool status: `ok`. Duration: 954ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|
@@ -43,7 +58,7 @@ _Tool status: `ok`. Duration: 1006ms._
 
 ## `leakage` — 2 finding(s)
 
-_Tool status: `ok`. Duration: 4010ms._
+_Tool status: `ok`. Duration: 3499ms._
 
 | Severity | Rule | Location | Message | Evidence |
 |---|---|---|---|---|

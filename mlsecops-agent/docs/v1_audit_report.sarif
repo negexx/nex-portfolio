@@ -1,0 +1,945 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/cos02/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "mlsecops-agent",
+          "informationUri": "https://github.com/negexx/nex-portfolio",
+          "semanticVersion": "0.2.0",
+          "rules": [
+            {
+              "id": "deserialization.unsafe-joblib-load",
+              "name": "DeserializationUnsafeJoblibLoad",
+              "shortDescription": {
+                "text": "insecure-deserialization"
+              },
+              "fullDescription": {
+                "text": "Detects deserialization.unsafe-joblib-load. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "deserialization"
+                ]
+              }
+            },
+            {
+              "id": "deserialization.unsafe-numpy-load",
+              "name": "DeserializationUnsafeNumpyLoad",
+              "shortDescription": {
+                "text": "insecure-deserialization"
+              },
+              "fullDescription": {
+                "text": "Detects deserialization.unsafe-numpy-load. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "deserialization"
+                ]
+              }
+            },
+            {
+              "id": "leakage.label-proxy-feature",
+              "name": "LeakageLabelProxyFeature",
+              "shortDescription": {
+                "text": "data-leakage"
+              },
+              "fullDescription": {
+                "text": "Detects leakage.label-proxy-feature. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "leakage"
+                ]
+              }
+            },
+            {
+              "id": "scenario.label-leakage-to-inflated-metrics",
+              "name": "ScenarioLabelLeakageToInflatedMetrics",
+              "shortDescription": {
+                "text": "threat-scenario"
+              },
+              "fullDescription": {
+                "text": "Detects scenario.label-leakage-to-inflated-metrics. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "scenario"
+                ]
+              }
+            },
+            {
+              "id": "scenario.supply-chain-to-rce",
+              "name": "ScenarioSupplyChainToRce",
+              "shortDescription": {
+                "text": "threat-scenario"
+              },
+              "fullDescription": {
+                "text": "Detects scenario.supply-chain-to-rce. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "scenario"
+                ]
+              }
+            },
+            {
+              "id": "supply_chain.unpinned-pip-install",
+              "name": "Supply_chainUnpinnedPipInstall",
+              "shortDescription": {
+                "text": "dependency-pinning"
+              },
+              "fullDescription": {
+                "text": "Detects supply_chain.unpinned-pip-install. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "supply_chain"
+                ]
+              }
+            },
+            {
+              "id": "supply_chain.untrusted-wget-source",
+              "name": "Supply_chainUntrustedWgetSource",
+              "shortDescription": {
+                "text": "download-integrity"
+              },
+              "fullDescription": {
+                "text": "Detects supply_chain.untrusted-wget-source. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "supply_chain"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "supply_chain.unpinned-pip-install",
+          "level": "warning",
+          "message": {
+            "text": "`!pip install imbalanced-learn` has no version pin (cell 1). Re-runs may install a different version and silently break the pipeline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 3,
+                  "snippet": {
+                    "text": "!pip install imbalanced-learn -q"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "dependency-pinning",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.unpinned-pip-install",
+          "level": "warning",
+          "message": {
+            "text": "`!pip install imbalanced-learn` has no version pin (cell 13). Re-runs may install a different version and silently break the pipeline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 4,
+                  "endLine": 4,
+                  "snippet": {
+                    "text": "!pip install imbalanced-learn -q"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "dependency-pinning",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.unpinned-pip-install",
+          "level": "warning",
+          "message": {
+            "text": "`!pip install openai` has no version pin (cell 28). Re-runs may install a different version and silently break the pipeline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 1,
+                  "snippet": {
+                    "text": "!pip install openai -q"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "dependency-pinning",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Pin `openai` to a known-good version: `!pip install openai==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 1). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 1,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 1). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 2,
+                  "endLine": 2,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 13). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 2,
+                  "endLine": 2,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 13). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 3,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-numpy-load",
+          "level": "warning",
+          "message": {
+            "text": "`numpy.load(..., allow_pickle=True)` enables pickle deserialisation in numpy arrays. The default is `False` for this reason. Save arrays in a non-pickle format (`.npy` without object arrays, `.npz`, or HDF5) so `allow_pickle` is not needed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 572,
+                  "endLine": 572,
+                  "snippet": {
+                    "text": "np.load('feature_cols.npy', allow_pickle=True)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-joblib-load",
+          "level": "error",
+          "message": {
+            "text": "`joblib.load` uses pickle internally and will execute arbitrary code when loading a maliciously crafted file. Replace with a safe format (e.g. safetensors, JSON, ONNX) or verify the file's integrity with a cryptographic hash before loading."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 573,
+                  "endLine": 573,
+                  "snippet": {
+                    "text": "joblib.load('label_encoder.pkl')"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-numpy-load",
+          "level": "warning",
+          "message": {
+            "text": "`numpy.load(..., allow_pickle=True)` enables pickle deserialisation in numpy arrays. The default is `False` for this reason. Save arrays in a non-pickle format (`.npy` without object arrays, `.npz`, or HDF5) so `allow_pickle` is not needed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 588,
+                  "endLine": 588,
+                  "snippet": {
+                    "text": "np.load('feature_cols.npy', allow_pickle=True)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-joblib-load",
+          "level": "error",
+          "message": {
+            "text": "`joblib.load` uses pickle internally and will execute arbitrary code when loading a maliciously crafted file. Replace with a safe format (e.g. safetensors, JSON, ONNX) or verify the file's integrity with a cryptographic hash before loading."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 589,
+                  "endLine": 589,
+                  "snippet": {
+                    "text": "joblib.load('label_encoder.pkl')"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-numpy-load",
+          "level": "warning",
+          "message": {
+            "text": "`numpy.load(..., allow_pickle=True)` enables pickle deserialisation in numpy arrays. The default is `False` for this reason. Save arrays in a non-pickle format (`.npy` without object arrays, `.npz`, or HDF5) so `allow_pickle` is not needed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 893,
+                  "endLine": 893,
+                  "snippet": {
+                    "text": "np.load('feature_cols.npy', allow_pickle=True)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-joblib-load",
+          "level": "error",
+          "message": {
+            "text": "`joblib.load` uses pickle internally and will execute arbitrary code when loading a maliciously crafted file. Replace with a safe format (e.g. safetensors, JSON, ONNX) or verify the file's integrity with a cryptographic hash before loading."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 894,
+                  "endLine": 894,
+                  "snippet": {
+                    "text": "joblib.load('label_encoder.pkl')"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-numpy-load",
+          "level": "warning",
+          "message": {
+            "text": "`numpy.load(..., allow_pickle=True)` enables pickle deserialisation in numpy arrays. The default is `False` for this reason. Save arrays in a non-pickle format (`.npy` without object arrays, `.npz`, or HDF5) so `allow_pickle` is not needed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 907,
+                  "endLine": 907,
+                  "snippet": {
+                    "text": "np.load('feature_cols.npy', allow_pickle=True)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove `allow_pickle=True` and resave the array without object dtype. If the array contains objects you control, switch to a typed format or use `numpy.savez` with a schema you verify."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "deserialization.unsafe-joblib-load",
+          "level": "error",
+          "message": {
+            "text": "`joblib.load` uses pickle internally and will execute arbitrary code when loading a maliciously crafted file. Replace with a safe format (e.g. safetensors, JSON, ONNX) or verify the file's integrity with a cryptographic hash before loading."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 908,
+                  "endLine": 908,
+                  "snippet": {
+                    "text": "joblib.load('label_encoder.pkl')"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "insecure-deserialization",
+            "check": "deserialization"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Replace `joblib.load` with a safe serialisation format such as `safetensors` or save/load model weights to JSON/ONNX. If you must use joblib, pin the exact file hash in your pipeline and verify it before `load`."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "leakage.label-proxy-feature",
+          "level": "error",
+          "message": {
+            "text": "[cell 2] Column `difficulty_level` in an assignment matches a label-proxy pattern. If this column encodes the target (directly or indirectly) and is included in the feature set, the model will have access to the answer at inference time."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 12,
+                  "snippet": {
+                    "text": "[\n    'duration','protocol_type','service','flag','src_bytes','dst_bytes','land',\n    'wrong_fragment','urgent','hot','num_failed_logins','logged_in',\n    'num_compromised','root_shell','su_attempted'"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "data-leakage",
+            "check": "leakage"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "leakage.label-proxy-feature",
+          "level": "error",
+          "message": {
+            "text": "[cell 13] Column `difficulty_level` in an assignment matches a label-proxy pattern. If this column encodes the target (directly or indirectly) and is included in the feature set, the model will have access to the answer at inference time."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "startLine": 13,
+                  "endLine": 24,
+                  "snippet": {
+                    "text": "[\n    'duration','protocol_type','service','flag','src_bytes','dst_bytes','land',\n    'wrong_fragment','urgent','hot','num_failed_logins','logged_in',\n    'num_compromised','root_shell','su_attempted'"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "data-leakage",
+            "check": "leakage"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Confirm whether `difficulty_level` is a label proxy — this is a name-match heuristic and may be a false positive. If it is a proxy, remove it from the feature list before training."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "scenario.supply-chain-to-rce",
+          "level": "error",
+          "message": {
+            "text": "Supply-chain compromise → arbitrary code execution. Untrusted download + unsafe deserialisation = full attack chain. An attacker who controls the wget source can ship a malicious pickle/joblib payload; the unverified load executes their code on every machine that runs the notebook. The two findings are individually 'medium' / 'high' but the *chain* is critical. (amplifiers triggered: 1)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "chained findings: deserialization.unsafe-joblib-load, supply_chain.unpinned-pip-install, supply_chain.untrusted-wget-source"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.5",
+            "category": "threat-scenario",
+            "check": "scenario"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Pin the download to a checksum (SHA-256 manifest beside the URL) AND switch the load to a safe format (safetensors / ONNX / JSON). Either fix alone leaves the chain partially intact."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "scenario.label-leakage-to-inflated-metrics",
+          "level": "error",
+          "message": {
+            "text": "Label leakage → inflated evaluation metrics. Label-proxy features combined with sloppy split discipline produce evaluation metrics that look great in the notebook and collapse on deployment. Every additional finding here multiplies the gap between reported and real performance. (amplifiers triggered: 0)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_v1_baseline.ipynb"
+                },
+                "region": {
+                  "snippet": {
+                    "text": "chained findings: leakage.label-proxy-feature"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "category": "threat-scenario",
+            "check": "scenario"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Drop the label proxy, move every fit/fit_transform/fit_resample to after train_test_split, and rerun evaluation. Expect a real F1 drop — that's the correct number."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "descriptor": {
+                "id": "supply_chain.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=supply_chain status=ok duration_ms=3"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "deserialization.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=deserialization status=ok duration_ms=954"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "secrets.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=secrets status=ok duration_ms=1"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "leakage.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=leakage status=ok duration_ms=3499"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "adversarial.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=adversarial status=ok duration_ms=0"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "scenario.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=scenario status=ok duration_ms=0"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

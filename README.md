@@ -30,15 +30,18 @@ None of these would be caught by `bandit`, `ruff`, `mypy`, or a generic SAST too
 
 `mlsecops-agent/` is a Python CLI (`mlsecops`) that runs an LLM-orchestrated tool loop over a target ML repo. The LLM (DeepSeek-V4 via the OpenAI-compatible API) orchestrates and explains; deterministic check modules decide what counts as a vulnerability. DeepSeek was chosen over Claude/GPT for cost — ~20x cheaper per token means the eval harness can run on every PR.
 
-**v0.2 status — all 5 checks shipped end-to-end, 174 tests passing (mypy `--strict` + ruff clean):**
+**v0.3 status — all 5 checks + cross-check scenarios layer + SARIF output, 193 tests passing (mypy `--strict` + ruff clean):**
 
 | Check | Status | What it surfaces |
 |---|---|---|
 | `supply_chain` | ✅ shipped | Unpinned `!pip install`, unverified `!wget`, requirements.txt CVEs via pip-audit |
 | `deserialization` | ✅ shipped | `joblib.load`, `pickle.load`, `torch.load(weights_only=False)`, `numpy.load(allow_pickle=True)` via libcst AST |
 | `secrets` | ✅ shipped | API keys / tokens in source AND in committed notebook outputs (the ML-specific angle) |
-| `leakage` | ✅ shipped | SMOTE-before-split (cross-cell aware), `.fit(X_test)`, label-proxy features, semgrep custom rules |
-| `adversarial` | ✅ shipped (opt-in) | FGSM evasion against a saved Keras model via IBM ART — pass `--include-adversarial` when a `.keras` artifact is in the target dir |
+| `leakage` | ✅ shipped | SMOTE-before-split (cross-cell aware), `.fit(X_test)`, label-proxy features, semgrep custom rules. **Smart-FP-suppression:** `df.drop(columns=[...])` cancels the proxy finding on dropped columns; `fit()` on a literal list (class registration) is not flagged as data-dependent fitting. |
+| `adversarial` | ✅ shipped (opt-in) | FGSM evasion against saved Keras models via IBM ART. Supports both dense `(N, features)` and Conv1D/LSTM `(N, features, 1)` shapes. `--adversarial-probes file.npy` for in-distribution probes; default falls back to uniform random. |
+| `scenario` ⭐ | ✅ shipped | Cross-check synthesis. Chains findings from the 5 detection checks into named threat scenarios (`supply-chain-to-rce`, `label-leakage-to-inflated-metrics`, `evadable-classifier-in-production`). Severity bumps one level per amplifier finding present. |
+
+**Output formats**: Markdown (`--report path.md`), **SARIF 2.1.0** (`--sarif path.sarif`) for GitHub Code Scanning / Azure DevOps / any SARIF-aware viewer, console table.
 
 Plus: `mlsecops audit <path>` aggregates all checks with a summary table; `mlsecops eval` runs a fixture-based precision/recall harness against `EVAL_BASELINE.json`; `--report path.md` writes a Markdown audit report. Architecture, conventions, and ADRs live under [`mlsecops-agent/.claude/`](mlsecops-agent/.claude/).
 
@@ -51,14 +54,16 @@ $ uv run mlsecops audit ../nids_v1_baseline.ipynb
 ┌─────────────────┬──────────┬──────────────┬──────────┬────────┐
 │ Check           │ Findings │ Max severity │ Duration │ Status │
 ├─────────────────┼──────────┼──────────────┼──────────┼────────┤
-│ deserialization │        8 │ high         │   1343ms │ issues │
-│ leakage         │        2 │ high         │    647ms │ issues │
-│ supply_chain    │        7 │ medium       │      4ms │ issues │
-│ secrets         │        0 │ —            │      2ms │ clean  │
+│ scenario        │        2 │ critical     │      0ms │ issues │
+│ deserialization │        8 │ high         │    937ms │ issues │
+│ leakage         │        2 │ high         │   3592ms │ issues │
+│ supply_chain    │        7 │ medium       │      3ms │ issues │
+│ secrets         │        0 │ —            │      1ms │ clean  │
+│ adversarial     │        0 │ —            │      0ms │ clean  │
 └─────────────────┴──────────┴──────────────┴──────────┴────────┘
 ```
 
-**17 findings across 4 checks.** Full Markdown report with per-rule rows, evidence, and fix proposals: [`mlsecops-agent/docs/v1_audit_report.md`](mlsecops-agent/docs/v1_audit_report.md).
+**19 findings: 17 detection + 2 synthesised threat scenarios** (`supply-chain-to-rce` and `label-leakage-to-inflated-metrics`, both CRITICAL — the wget+joblib.load chain is an RCE pattern, the label-proxy+unspecified-split chain inflates evaluation metrics). Full Markdown report with per-rule rows, evidence, and fix proposals: [`mlsecops-agent/docs/v1_audit_report.md`](mlsecops-agent/docs/v1_audit_report.md).
 
 What the agent catches in v1, mapped to the original "mistakes I shipped" list:
 
@@ -70,17 +75,20 @@ What the agent catches in v1, mapped to the original "mistakes I shipped" list:
 | `!wget` from raw GitHub | `supply_chain.untrusted-wget-source` | ✅ caught (4 instances) |
 | `numpy.load(allow_pickle=True)` | `deserialization.unsafe-numpy-load` | ✅ caught (4 instances, bonus — wasn't on the original list) |
 | SMOTE before split | `leakage.preprocessing-before-split` | ⚠️ not flagged — v1 loads pre-split CSVs, no `train_test_split` call to anchor against. Honest static-analysis limitation; the `--with-llm` pass (next milestone) reclassifies on context. |
-| LSTM evadability claim | `adversarial.fgsm-trivial-evasion` | ✅ check shipped. Can't fire on v1 (no `.keras` artifact). Now measured on v2 — see Act 3 closing-loop section: **CNN 5 % / LSTM 1 % flip rate at ε=0.05** ⇒ neither is trivially evadable. The original "LSTM trivially evadable" line was speculation; this is the measurement. |
+| LSTM evadability claim | `adversarial.fgsm-trivial-evasion` | ✅ check shipped. Doesn't fire on v1 (no `.keras` artifact ships with the notebook). Measured on v2's Colab-trained artifacts — see Act 3 closing-loop section: the LSTM **is** trivially evadable at ε≥0.10 (49.8 %) and dramatically so at ε=0.20 (77 %). The v1 claim was right; the agent provides the measurement. |
 
 Run it yourself:
 
 ```bash
 cd mlsecops-agent
 uv sync --extra dev
-uv run pytest -q                                     # 174 tests, all pass
-uv run mlsecops audit ../nids_v1_baseline.ipynb      # the full audit
-uv run mlsecops audit ../nids_pipeline_v2.ipynb      # the closing-loop audit on v2
-uv run mlsecops eval                                 # P/R per check vs baseline
+uv run pytest -q                                                       # 193 tests, all pass
+uv run mlsecops audit ../nids_v1_baseline.ipynb                        # the full audit
+uv run mlsecops audit ../nids_pipeline_v2.ipynb                        # the closing-loop audit on v2
+uv run mlsecops audit ../nids_v1_baseline.ipynb --sarif v1.sarif       # SARIF for GitHub Code Scanning
+uv run mlsecops audit . --include-adversarial \
+   --adversarial-probes ../v2_test_attack_samples.npy                  # FGSM with real probes
+uv run mlsecops eval                                                   # P/R per check vs baseline
 ```
 
 ## Act 3 — I fixed v1 and shipped v2
@@ -131,20 +139,37 @@ Raw artifacts: [`v2_classical_results.json`](v2_classical_results.json) (per-mod
 
 ### Closing the loop — the agent's verdict on v2
 
-I re-ran the agent against the fixed pipeline. Full report: [`mlsecops-agent/docs/v2_audit_report.md`](mlsecops-agent/docs/v2_audit_report.md).
+Full report: [`mlsecops-agent/docs/v2_audit_report.md`](mlsecops-agent/docs/v2_audit_report.md). Machine-readable: [`mlsecops-agent/docs/v2_audit_report.sarif`](mlsecops-agent/docs/v2_audit_report.sarif) (SARIF 2.1.0).
 
-| Check | v1 findings | v2 findings | Net change |
+| Check | v1 | v2 | Net change |
 |---|---:|---:|---|
 | `deserialization` | 8 | **0** | **–8 ✅** all unsafe loads removed |
-| `leakage` | 2 | 2 | 0 — both v2 findings are **static-analysis false positives** the `--with-llm` pass will reclassify (the name `difficulty_level` still appears in v2's column list, but the next line drops it; `le.fit(['DoS',…])` is a constant string list, not data) |
-| `supply_chain` | 7 | 3 | –4 — remaining 3 are the Colab-pasteability compromise (`!pip install` unpinned, `!wget` from raw GitHub). Documented. |
+| `leakage` | 2 | **0** | **–2 ✅** smarter AST analysis recognises `df.drop(columns=[...])` cancels the proxy, and `fit()` on a literal list is class registration |
+| `supply_chain` | 7 | 3 | –4 — remaining 3 are the Colab-pasteability compromise. Documented. |
 | `secrets` | 0 | 0 | 0 |
-| `adversarial` | 0 | 0 | FGSM ε=0.05: CNN 5 % / LSTM 1 % flip rate. Neither model is trivially evadable. Real measurement, not a claim. |
-| **Total** | **17** | **5** | **–70.6 %** |
+| `adversarial` | 0 | **1 (HIGH)** | **+1** — measured under in-distribution FGSM, the LSTM is trivially evadable at ε≥0.10 |
+| `scenario` | **2 (CRITICAL)** | **0** | **–2 ✅** v1's chained findings no longer have all the ingredients in v2 |
+| **Total** | **19** | **4** | **–79 %** |
 
-The agent caught everything it should have on v1 and confirmed the fixes worked on v2. Two false positives remain — both honestly disclosed in the report — and they're the kind of edge case that motivates the next milestone (the `--with-llm` reasoning layer).
+### FGSM robustness sweep on the trained models
 
-**FGSM bonus**: with the Colab-trained `nids_v2_cnn.keras` and `nids_v2_lstm.keras` dropped into the repo root, `mlsecops audit --include-adversarial` now actually measures evadability. Result: **CNN 5 % flip rate, LSTM 1 %** at ε=0.05 — both below the 50 % trivial-evasion threshold. The earlier "LSTM trivially evadable" line in this README was speculation; the agent now provides the measurement and it disproves the claim. Honest beats dramatic.
+With the Colab-trained `.keras` artifacts dropped at the repo root, `mlsecops audit . --include-adversarial --adversarial-probes v2_test_attack_samples.npy` runs FGSM against real `KDDTest+` attack samples — not random noise. Sweep over five `ε`:
+
+| Model | ε=0.01 | ε=0.05 | ε=0.10 | ε=0.20 | ε=0.30 |
+|---|---:|---:|---:|---:|---:|
+| `nids_v2_cnn.keras` | 4.3 % | 16.0 % | 26.4 % | 38.2 % | 43.4 % |
+| `nids_v2_lstm.keras` | 3.9 % | 19.6 % | **49.8 %** | **77.0 %** | **83.6 %** |
+
+The LSTM **is** trivially evadable: at ε=0.20, 77 % of in-distribution attack predictions flip. v1 speculated about this; the agent measures it. The CNN is more robust (peaks at 43.4 % at ε=0.30) but is recorded as a soft warning.
+
+### Cross-check threat scenarios
+
+A new synthesis layer chains findings from the 5 detection checks into named threat patterns. v1 fired two CRITICAL scenarios that no single check could surface alone:
+
+- **`scenario.supply-chain-to-rce`** — `supply_chain.untrusted-wget-source` + `deserialization.unsafe-joblib-load` + amplifier `unpinned-pip-install` → CRITICAL. The individual findings are MEDIUM/HIGH; the chain is critical because an attacker controlling the wget source can ship a malicious joblib payload that the unverified load executes on every machine.
+- **`scenario.label-leakage-to-inflated-metrics`** — flags that v1's evaluation metrics weren't measuring what the author thought they were.
+
+v2 cleared both scenarios by removing the deserialisation calls and the label proxy.
 
 ---
 

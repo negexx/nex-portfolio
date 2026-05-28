@@ -1,0 +1,227 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/cos02/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "mlsecops-agent",
+          "informationUri": "https://github.com/negexx/nex-portfolio",
+          "semanticVersion": "0.2.0",
+          "rules": [
+            {
+              "id": "supply_chain.unpinned-pip-install",
+              "name": "Supply_chainUnpinnedPipInstall",
+              "shortDescription": {
+                "text": "dependency-pinning"
+              },
+              "fullDescription": {
+                "text": "Detects supply_chain.unpinned-pip-install. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "supply_chain"
+                ]
+              }
+            },
+            {
+              "id": "supply_chain.untrusted-wget-source",
+              "name": "Supply_chainUntrustedWgetSource",
+              "shortDescription": {
+                "text": "download-integrity"
+              },
+              "fullDescription": {
+                "text": "Detects supply_chain.untrusted-wget-source. Produced by a deterministic mlsecops-agent check; interpret severity using the security-severity property."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ml",
+                  "supply_chain"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "supply_chain.unpinned-pip-install",
+          "level": "warning",
+          "message": {
+            "text": "`!pip install imbalanced-learn` has no version pin (cell 2). Re-runs may install a different version and silently break the pipeline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_pipeline_v2.ipynb"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 3,
+                  "snippet": {
+                    "text": "!pip install imbalanced-learn -q"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "dependency-pinning",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Pin `imbalanced-learn` to a known-good version: `!pip install imbalanced-learn==X.Y.Z` and record it in requirements.txt / pyproject.toml."
+              },
+              "properties": {
+                "confidence": "high"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 2). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_pipeline_v2.ipynb"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 1,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "supply_chain.untrusted-wget-source",
+          "level": "warning",
+          "message": {
+            "text": "`!wget` downloads content with no checksum verification anywhere in the notebook (cell 2). If the upstream source changes, your pipeline runs on different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nids_pipeline_v2.ipynb"
+                },
+                "region": {
+                  "startLine": 2,
+                  "endLine": 2,
+                  "snippet": {
+                    "text": "!wget -q https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.txt"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.5",
+            "category": "download-integrity",
+            "check": "supply_chain"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "After the `wget`, verify the file: `!sha256sum <file>` and assert against an expected digest."
+              },
+              "properties": {
+                "confidence": "medium"
+              }
+            }
+          ]
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "descriptor": {
+                "id": "supply_chain.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=supply_chain status=ok duration_ms=1"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "deserialization.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=deserialization status=ok duration_ms=318"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "secrets.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=secrets status=ok duration_ms=0"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "leakage.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=leakage status=ok duration_ms=3185"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "adversarial.status"
+              },
+              "level": "note",
+              "message": {
+                "text": "check=adversarial status=ok duration_ms=0"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

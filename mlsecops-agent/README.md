@@ -2,7 +2,7 @@
 
 An LLM-orchestrated audit agent for ML codebases. Finds the mistakes a generic SAST tool can't (data leakage, model evadability) and the security mistakes specific to ML repos that Cursor doesn't know about (insecure pickle loading, secrets in notebook outputs, unpinned `!pip install`).
 
-> **Status — v0.2**: all 5 checks shipped end-to-end (detection, fixtures, tests, registry, CLI). **174 tests pass** (3 skipped without TensorFlow installed locally), mypy `--strict` clean, ruff clean. The LLM-orchestrated agent loop (DeepSeek-V4 via `--with-llm`) is the next milestone — currently the CLI runs checks deterministically without involving an LLM.
+> **Status — v0.3**: all 5 detection checks + cross-check threat-scenario synthesis layer + SARIF 2.1.0 output (`--sarif`). **193 tests pass** (4 skipped without TensorFlow installed locally), mypy `--strict` clean, ruff clean. CI uploads SARIF to GitHub Code Scanning on every push. The LLM-orchestrated agent loop (DeepSeek-V4 via `--with-llm`) remains the next milestone — the CLI runs deterministically without an LLM today.
 
 ## What it does
 
@@ -14,9 +14,12 @@ Five checks, two pillars:
 | 2 | `deserialization` | Security | libcst AST (joblib / pickle / torch / numpy unsafe loads) | ✅ |
 | 3 | `secrets` | Security | regex + notebook-output scan (escalated severity for committed outputs) | ✅ |
 | 4 | `leakage` | ML hygiene | libcst AST (SMOTE-before-split cross-cell, fit-on-test, label-proxy names) | ✅ ¹ |
-| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models — supports both dense `(N, features)` and Conv1D/LSTM `(N, features, 1)` shapes) | ✅ (opt-in) |
+| 5 | `adversarial` | Security + ML | IBM `adversarial-robustness-toolbox` (FGSM on saved Keras models — supports both dense `(N, features)` and Conv1D/LSTM `(N, features, 1)` shapes; `--adversarial-probes` for in-distribution probes) | ✅ (opt-in) |
+| ⭐ | `scenario` | Cross-check synthesis | Chains findings into named threat patterns (`supply-chain-to-rce`, `label-leakage-to-inflated-metrics`, `evadable-classifier-in-production`). Severity bumps one level per amplifier present. | ✅ |
 
 Every finding is produced by a deterministic tool. The LLM never *decides* what is vulnerable — its role is orchestration, fix-narration, and executive summary (`mlsecops audit --with-llm`).
+
+**Output formats:** Markdown (`--report path.md`), **SARIF 2.1.0** (`--sarif path.sarif`), and console tables. The CI workflow uploads SARIF to GitHub Code Scanning, so findings appear in the repo's *Security* tab alongside Dependabot, CodeQL, etc.
 
 ¹ **Known leakage-rule limitation.** `leakage.preprocessing-before-split` is anchored on the position of `train_test_split(...)` in document order. Notebooks that load already-split data from disk (separate `train.csv` / `test.csv` files — which the sibling v1 notebook does) have no anchor for the rule to fire against. The label-proxy and fit-on-test rules are independent and still fire normally.
 
@@ -59,15 +62,16 @@ $ uv run mlsecops audit ../nids_v1_baseline.ipynb
 ┌─────────────────┬──────────┬──────────────┬──────────┬────────┐
 │ Check           │ Findings │ Max severity │ Duration │ Status │
 ├─────────────────┼──────────┼──────────────┼──────────┼────────┤
-│ deserialization │        8 │ high         │   1604ms │ issues │
-│ leakage         │        2 │ high         │    742ms │ issues │
-│ supply_chain    │        7 │ medium       │      5ms │ issues │
+│ scenario        │        2 │ critical     │      0ms │ issues │
+│ deserialization │        8 │ high         │    937ms │ issues │
+│ leakage         │        2 │ high         │   3592ms │ issues │
+│ supply_chain    │        7 │ medium       │      3ms │ issues │
 │ adversarial     │        0 │ —            │      0ms │ clean  │
-│ secrets         │        0 │ —            │      2ms │ clean  │
+│ secrets         │        0 │ —            │      1ms │ clean  │
 └─────────────────┴──────────┴──────────────┴──────────┴────────┘
 ```
 
-17 findings across 4 checks. `secrets` and `adversarial` correctly come up clean (no hardcoded creds in v1; no saved Keras artifacts in the notebook directory). Full Markdown report with per-rule rows, evidence, and fix proposals lives in [`docs/v1_audit_report.md`](docs/v1_audit_report.md).
+**19 findings**: 17 deterministic + 2 synthesised CRITICAL scenarios (the wget+joblib.load chain is an RCE pattern; the label-proxy + sloppy-split chain inflates evaluation). `secrets` and `adversarial` correctly come up clean (no hardcoded creds in v1; no saved Keras artifacts in the notebook directory). Full Markdown report with per-rule rows, evidence, and fix proposals lives in [`docs/v1_audit_report.md`](docs/v1_audit_report.md); the same data as SARIF in [`docs/v1_audit_report.sarif`](docs/v1_audit_report.sarif).
 
 ### Closing the loop — audit on the fixed v2 notebook
 
@@ -86,16 +90,23 @@ $ uv run mlsecops audit ../nids_pipeline_v2.ipynb
 └─────────────────┴──────────┴──────────────┴──────────┴────────┘
 ```
 
-**v1 → v2: 17 → 5 findings (–70.6 %).** All 8 deserialization issues are gone. The 3 remaining `supply_chain` items are documented Colab-pasteability compromises. The 2 `leakage` items are honest static-analysis false positives (name-match heuristic firing on the column name v2 immediately drops; `le.fit()` on a constant string list flagged as data-dependent). Full diff and per-finding rationale: [`docs/v2_audit_report.md`](docs/v2_audit_report.md).
+**v1 → v2: 19 → 4 findings (–79 %).** All 8 deserialization issues are gone. The 2 v1 scenarios (CRITICAL) are cleared. The 2 v1 leakage findings (which became 0 in v2 thanks to smarter AST analysis — `df.drop(columns=[…])` now suppresses proxy findings, and `fit()` on a literal list is recognised as class registration). The 3 remaining `supply_chain` items are documented Colab-pasteability compromises. The 1 new `adversarial` finding is real: see the FGSM sweep below. Full diff and per-finding rationale: [`docs/v2_audit_report.md`](docs/v2_audit_report.md) (and [SARIF](docs/v2_audit_report.sarif)).
 
-With the Colab-trained `.keras` artifacts in place, `--include-adversarial` actually fires:
+### FGSM robustness sweep — real KDDTest+ probes
 
+```bash
+uv run mlsecops audit . --include-adversarial \
+   --adversarial-probes ../v2_test_attack_samples.npy
 ```
-CNN  flip rate at eps=0.05: 5 / 100 confident probes  (5 %)
-LSTM flip rate at eps=0.05: 1 / 100 confident probes  (1 %)
-```
 
-Both well under the 50 % trivial-evasion threshold — no `adversarial.fgsm-trivial-evasion` finding emitted. The v2 models are *not* trivially evadable on random probes; the v1 README's "LSTM trivially evadable" line was speculation that the measurement disproved.
+| Model | ε=0.01 | ε=0.05 | ε=0.10 | ε=0.20 | ε=0.30 |
+|---|---:|---:|---:|---:|---:|
+| `nids_v2_cnn.keras` | 4.3 % | 16.0 % | 26.4 % | 38.2 % | 43.4 % |
+| `nids_v2_lstm.keras` | 3.9 % | 19.6 % | **49.8 %** | **77.0 %** | **83.6 %** |
+
+The LSTM **is** trivially evadable at ε ≥ 0.10 — at ε = 0.20, a 20 % feature-range perturbation flips 77 % of in-distribution attack predictions. v1 speculated; the agent now measures.
+
+Probes are real attack samples scaled through the same `StandardScaler` the model was trained with. Earlier runs with uniform-random probes reported < 5 % flip rate — that was uninformative because random noise sits outside the training distribution. Switching to in-distribution probes is what made the brittleness visible.
 
 ## Architecture
 
