@@ -25,7 +25,8 @@ from .checks import CHECKS
 from .eval import run_eval, write_baseline
 from .llm import LLMProvider, LLMProviderError, MockLLMProvider
 from .models import CheckName, CheckResult, Finding, Severity
-from .reporting import render_markdown
+from .reporting import render_markdown, render_sarif
+from .scenarios import synthesise_scenarios
 from .storage import Repository
 
 # Module-level seam so tests can swap in a MockLLMProvider without touching env.
@@ -184,6 +185,20 @@ def audit(
             writable=True,
         ),
     ] = None,
+    sarif: Annotated[
+        Path | None,
+        typer.Option(
+            "--sarif",
+            help=(
+                "Write a SARIF 2.1.0 JSON report of the run. Drop into "
+                "GitHub Code Scanning, Azure DevOps, or any SARIF-aware "
+                "viewer; file paths are relativised against the target."
+            ),
+            dir_okay=False,
+            file_okay=True,
+            writable=True,
+        ),
+    ] = None,
     include_adversarial: Annotated[
         bool,
         typer.Option(
@@ -194,6 +209,21 @@ def audit(
             ),
         ),
     ] = False,
+    adversarial_probes: Annotated[
+        Path | None,
+        typer.Option(
+            "--adversarial-probes",
+            help=(
+                "Optional .npy file of real samples to probe with FGSM instead of "
+                "uniform random noise. Shape must match the model input. "
+                "In-distribution probes give a meaningful evasion rate."
+            ),
+            dir_okay=False,
+            file_okay=True,
+            exists=True,
+            readable=True,
+        ),
+    ] = None,
     with_llm: Annotated[
         bool,
         typer.Option(
@@ -237,9 +267,30 @@ def audit(
     for check_name in selected:
         runner = CHECKS[check_name]
         if check_name is CheckName.ADVERSARIAL:
-            results.append(runner(target, include_adversarial=include_adversarial))
+            results.append(
+                runner(
+                    target,
+                    include_adversarial=include_adversarial,
+                    probes_path=adversarial_probes,
+                )
+            )
         else:
             results.append(runner(target))
+
+    # Cross-check synthesis — chain findings from the 5 detection checks into
+    # named threat scenarios. Appended under the SCENARIO pseudo-check so they
+    # flow through the summary, per-check rendering, and report formats.
+    all_findings = [f for r in results for f in r.findings]
+    scenario_findings = synthesise_scenarios(all_findings)
+    if scenario_findings:
+        results.append(
+            CheckResult(
+                check=CheckName.SCENARIO,
+                findings=scenario_findings,
+                tool_status="ok",
+                duration_ms=0,
+            )
+        )
 
     _render_summary(results)
     for r in results:
@@ -250,6 +301,11 @@ def audit(
     if report is not None:
         report.write_text(render_markdown(results, target=target), encoding="utf-8")
         _console.print(f"\n[dim]Markdown report written to[/dim] [bold]{report}[/bold]")
+
+    if sarif is not None:
+        target_root = target.parent if target.is_file() else target
+        sarif.write_text(render_sarif(results, target_root=target_root), encoding="utf-8")
+        _console.print(f"[dim]SARIF report written to[/dim] [bold]{sarif}[/bold]")
 
     if persist is not None:
         repo = Repository(persist)

@@ -89,8 +89,18 @@ def _find_model_files(target: Path) -> list[Path]:
     return sorted(found)
 
 
-def _probe_model(model_path: Path) -> Finding | None:
+def _probe_model(
+    model_path: Path,
+    probes_path: Path | None = None,
+    eps: float = _FGSM_EPS,
+    n_probes: int = _N_PROBES,
+) -> Finding | None:
     """Load the Keras model at *model_path*, run FGSM, and return a Finding or None.
+
+    When *probes_path* is provided it must point to a ``.npy`` file shaped to
+    match the model's input. Real-distribution probes (e.g. ``KDDTest+`` attack
+    samples) give a far more meaningful evasion-rate than uniform random noise,
+    which lives outside the training distribution.
 
     Returns None when:
     - the model fails to load,
@@ -128,11 +138,11 @@ def _probe_model(model_path: Path) -> Finding | None:
     rank = len(input_shape)
     if rank == 2:
         n_features = int(input_shape[1])
-        probe_shape: tuple[int, ...] = (_N_PROBES, n_features)
+        probe_shape: tuple[int, ...] = (n_probes, n_features)
         art_input_shape: tuple[int, ...] = (n_features,)
     elif rank == 3 and input_shape[-1] == 1:
         n_features = int(input_shape[1])
-        probe_shape = (_N_PROBES, n_features, 1)
+        probe_shape = (n_probes, n_features, 1)
         art_input_shape = (n_features, 1)
     else:
         _log.info(
@@ -143,10 +153,31 @@ def _probe_model(model_path: Path) -> Finding | None:
         return None
 
     n_classes: int = int(model.output_shape[-1])
+    probe_source: str = "random"
 
-    # Synthesise probe inputs: uniform random in [0, 1].
-    rng = np.random.default_rng(seed=42)
-    x_raw: np.ndarray = rng.random(probe_shape, dtype=np.float32)
+    if probes_path is not None:
+        try:
+            loaded = np.load(str(probes_path))
+        except (OSError, ValueError) as exc:
+            _log.warning("adversarial.probes-load-failed", path=str(probes_path), error=str(exc))
+            return None
+
+        if loaded.ndim != len(probe_shape) or loaded.shape[1:] != probe_shape[1:]:
+            _log.warning(
+                "adversarial.probes-shape-mismatch",
+                expected=probe_shape[1:],
+                got=loaded.shape,
+            )
+            return None
+
+        # Cap probe count for cost — keep first n_probes samples (callers can
+        # pre-shuffle their .npy file if they want randomness).
+        x_raw = loaded[:n_probes].astype(np.float32, copy=False)
+        probe_source = f"real-samples ({probes_path.name})"
+    else:
+        # Synthesise probe inputs: uniform random in [0, 1].
+        rng = np.random.default_rng(seed=42)
+        x_raw = rng.random(probe_shape, dtype=np.float32)
 
     # Score probes; keep only the ones the model is confident about.
     try:
@@ -183,7 +214,7 @@ def _probe_model(model_path: Path) -> Finding | None:
 
     # Run FGSM to generate adversarial examples.
     try:
-        fgsm = FastGradientMethod(estimator=classifier, eps=_FGSM_EPS)
+        fgsm = FastGradientMethod(estimator=classifier, eps=eps)
         x_adv: np.ndarray = fgsm.generate(x=x_probe)
     except Exception as exc:
         _log.warning("adversarial.fgsm-failed", model=str(model_path), error=str(exc))
@@ -212,7 +243,8 @@ def _probe_model(model_path: Path) -> Finding | None:
         n_probes=len(x_probe),
         n_flipped=n_flipped,
         attack_success=f"{attack_success:.1%}",
-        eps=_FGSM_EPS,
+        eps=eps,
+        probe_source=probe_source,
     )
 
     if attack_success <= _EVASION_THRESHOLD:
@@ -228,13 +260,14 @@ def _probe_model(model_path: Path) -> Finding | None:
         line_start=None,
         line_end=None,
         message=(
-            f"`{model_path.name}` is trivially evadable: FGSM with eps={_FGSM_EPS} "
+            f"`{model_path.name}` is trivially evadable: FGSM with eps={eps} "
             f"flips {pct} of confident probe predictions "
-            f"({n_flipped}/{len(x_probe)} samples). "
+            f"({n_flipped}/{len(x_probe)} samples, probes={probe_source}). "
             "An adversary can craft inputs that bypass this classifier with minimal perturbation."
         ),
         evidence=(
-            f"attack_success={pct}, eps={_FGSM_EPS}, n_probes={len(x_probe)}, n_flipped={n_flipped}"
+            f"attack_success={pct}, eps={eps}, n_probes={len(x_probe)}, "
+            f"n_flipped={n_flipped}, probes={probe_source}"
         ),
         fix=FixProposal(
             summary=(
@@ -253,15 +286,22 @@ def _probe_model(model_path: Path) -> Finding | None:
 # ---------------------------------------------------------------------------
 
 
-def run(target: Path, *, include_adversarial: bool = False) -> CheckResult:
+def run(
+    target: Path,
+    *,
+    include_adversarial: bool = False,
+    probes_path: Path | None = None,
+) -> CheckResult:
     """Run the adversarial-robustness check against *target*.
 
     By default (``include_adversarial=False``) this is a no-op — loading Keras
     models and running TensorFlow incurs heavy startup cost and requires
     TensorFlow to be installed.  Pass ``include_adversarial=True`` to opt in.
 
-    The CLI ``--include-adversarial`` flag wiring is a follow-up task; this
-    parameter is the extension point.
+    *probes_path* (optional) — a ``.npy`` file containing real samples to attack
+    instead of uniform random noise. Shape must match the model's input. For
+    NSL-KDD this is the scaled test attack samples; the resulting flip rate is
+    the actual, in-distribution evasion success rate rather than a sanity probe.
     """
     started = time.perf_counter()
 
@@ -293,7 +333,7 @@ def run(target: Path, *, include_adversarial: bool = False) -> CheckResult:
 
     for model_path in model_files:
         try:
-            finding = _probe_model(model_path)
+            finding = _probe_model(model_path, probes_path=probes_path)
         except Exception as exc:
             # Belt-and-suspenders: _probe_model already catches internally.
             _log.error("adversarial.unexpected-error", model=str(model_path), error=str(exc))
