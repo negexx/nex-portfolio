@@ -18,7 +18,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
@@ -77,7 +76,8 @@ def main() -> int:
     y_trainval = le.transform(train_df["category"])
     y_test = le.transform(test_df["category"])
 
-    X_train_raw, _, y_train, _ = train_test_split(
+    # Only the train fold's scaler is needed; val/test splits aren't used here.
+    X_train_raw, _, _, _ = train_test_split(
         X_trainval, y_trainval,
         test_size=0.2, stratify=y_trainval, random_state=RANDOM_STATE,
     )

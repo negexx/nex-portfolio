@@ -15,20 +15,20 @@ Reference: https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..models import CheckResult, Finding, Severity
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Severity mapping
 # ---------------------------------------------------------------------------
 
 # SARIF distinguishes the human-facing `level` (error/warning/note/none) from
-# the machine-facing `security-severity` score (0.0 – 10.0, GitHub convention).
+# the machine-facing `security-severity` score (0.0 - 10.0, GitHub convention).
 _SARIF_LEVEL: dict[Severity, str] = {
     Severity.INFO: "note",
     Severity.LOW: "note",
