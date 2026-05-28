@@ -27,6 +27,10 @@ class CheckName(StrEnum):
     SECRETS = "secrets"
     SUPPLY_CHAIN = "supply_chain"
     ADVERSARIAL = "adversarial"
+    # Synthetic "check" populated by scenarios.synthesise_scenarios — chains
+    # findings from the five detection checks into named threat patterns.
+    # Never has a runner registered in checks.CHECKS.
+    SCENARIO = "scenario"
 
 
 class FixProposal(BaseModel):
